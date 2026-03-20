@@ -1,9 +1,9 @@
-const CACHE_NAME = 'workout-tracker-v1';
+const CACHE_NAME = 'workout-tracker-v2';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/manifest.json'
+  './',
+  './index.html',
+  './app.js',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => caches.match('/'));
+      }).catch(() => caches.match('./'));
     })
   );
 });
