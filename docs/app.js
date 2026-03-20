@@ -217,6 +217,10 @@ function initAddForm() {
   renderSets();
   updateUnitButtons();
 
+  // Reset add-set button state
+  const addSetBtn = document.getElementById('add-set-btn');
+  addSetBtn.classList.remove('opacity-40', 'pointer-events-none');
+
   // Clear exercise input
   document.getElementById('exercise-input').value = '';
   document.getElementById('exercise-dropdown').classList.add('hidden');
