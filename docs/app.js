@@ -725,6 +725,74 @@ document.getElementById('graph-volume-btn').addEventListener('click', () => {
 });
 
 // ============================================================
+// BACKUP — EXPORT / IMPORT
+// ============================================================
+
+document.getElementById('backup-btn').addEventListener('click', () => {
+  document.getElementById('backup-modal').classList.remove('hidden');
+});
+document.getElementById('backup-modal-close').addEventListener('click', () => {
+  document.getElementById('backup-modal').classList.add('hidden');
+});
+document.getElementById('backup-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('backup-modal')) {
+    document.getElementById('backup-modal').classList.add('hidden');
+  }
+});
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    entries: getEntries(),
+    exercises: getExercises(),
+    gymTimes: getGymTimes(),
+    defaultUnit: getDefaultUnit(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  a.href = url;
+  a.download = `workout-backup-${dateStr}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('エクスポートしました！');
+  document.getElementById('backup-modal').classList.add('hidden');
+});
+
+document.getElementById('import-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.entries || !data.exercises) throw new Error('invalid');
+      if (!confirm(`${data.entries.length}件の記録をインポートします。現在のデータに追加されます。よろしいですか？`)) return;
+      // Merge entries (avoid duplicates by id)
+      const existingIds = new Set(getEntries().map(e => e.id));
+      const newEntries = [...getEntries(), ...data.entries.filter(e => !existingIds.has(e.id))];
+      saveEntries(newEntries);
+      // Merge exercises
+      const existingExNames = new Set(getExercises().map(e => e.name.toLowerCase()));
+      const newExercises = [...getExercises(), ...data.exercises.filter(e => !existingExNames.has(e.name.toLowerCase()))];
+      saveExercises(newExercises);
+      // Merge gym times
+      const mergedTimes = { ...data.gymTimes, ...getGymTimes() };
+      saveGymTimes(mergedTimes);
+      showToast(`${data.entries.length}件をインポートしました！`);
+      document.getElementById('backup-modal').classList.add('hidden');
+      switchTab('today');
+    } catch {
+      alert('ファイルの読み込みに失敗しました。正しいバックアップファイルを選択してください。');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+// ============================================================
 // SERVICE WORKER
 // ============================================================
 
