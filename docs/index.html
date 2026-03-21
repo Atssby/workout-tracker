@@ -282,6 +282,14 @@
 
     <!-- History Page -->
     <div id="page-history" class="page p-4 pb-24">
+      <!-- Muscle group filter pills -->
+      <div id="history-muscle-pills" class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-2" style="scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
+      <!-- Exercise filter -->
+      <div id="history-exercise-wrap" class="hidden mb-3">
+        <select id="history-exercise-select-filter" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 appearance-none">
+          <option value="">すべての種目</option>
+        </select>
+      </div>
       <!-- View toggle -->
       <div class="flex items-center justify-end mb-3">
         <div class="flex bg-gray-900 border border-gray-800 rounded-xl p-0.5">

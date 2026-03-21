@@ -91,6 +91,8 @@ let historyViewMode = 'list';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth(); // 0-indexed
 let calendarSelectedDate = null;
+let historyMuscleFilter   = '';   // '' = すべて
+let historyExerciseFilter = '';   // exercise id, '' = すべて
 
 // ============================================================
 // TAB NAVIGATION
@@ -570,6 +572,8 @@ function renderHistory() {
   document.getElementById('history-cal-btn').className =
     `history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${historyViewMode === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
 
+  renderHistoryFilters();
+
   if (historyViewMode === 'calendar') {
     renderCalendarView();
   } else {
@@ -577,8 +581,101 @@ function renderHistory() {
   }
 }
 
+// フィルタUI描画 + 種目セレクト更新
+function renderHistoryFilters() {
+  // --- 部位ピル ---
+  const pillContainer = document.getElementById('history-muscle-pills');
+  pillContainer.innerHTML = '';
+  const muscles = ['', '胸', '背中', '脚', '肩', '腕', '腹'];
+  muscles.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors';
+    btn.dataset.muscle = m;
+    btn.textContent = m || 'すべて';
+    const isActive = historyMuscleFilter === m;
+    if (isActive) {
+      const c = MUSCLE_COLORS[m];
+      btn.style.backgroundColor = c ? c.activeBg : '#4f46e5';
+      btn.style.borderColor     = c ? c.border    : '#4f46e5';
+      btn.style.color           = '#ffffff';
+    } else {
+      btn.classList.add('bg-gray-900', 'border-gray-800', 'text-gray-400');
+    }
+    btn.addEventListener('click', () => {
+      historyMuscleFilter   = m;
+      historyExerciseFilter = '';   // 部位が変わったら種目フィルタをリセット
+      renderHistory();
+    });
+    pillContainer.appendChild(btn);
+  });
+
+  // --- 種目セレクト ---
+  updateHistoryExerciseFilter();
+}
+
+function updateHistoryExerciseFilter() {
+  const wrap = document.getElementById('history-exercise-wrap');
+  const sel  = document.getElementById('history-exercise-select-filter');
+
+  // フィルタ後のエントリから出現する種目を収集
+  const allEntries = getEntries();
+  const filtered   = historyMuscleFilter
+    ? allEntries.filter(e => e.muscleGroup === historyMuscleFilter)
+    : allEntries;
+
+  // 種目名で重複排除しつつリスト化
+  const seen = new Set();
+  const exercisesInFilter = [];
+  filtered.forEach(e => {
+    const key = e.exerciseId || e.exerciseName;
+    if (!seen.has(key)) {
+      seen.add(key);
+      exercisesInFilter.push({ id: e.exerciseId, name: e.exerciseName });
+    }
+  });
+
+  if (exercisesInFilter.length === 0) {
+    wrap.classList.add('hidden');
+    historyExerciseFilter = '';
+    return;
+  }
+
+  wrap.classList.remove('hidden');
+  const prev = historyExerciseFilter;
+  sel.innerHTML = '<option value="">すべての種目</option>';
+  exercisesInFilter.forEach(ex => {
+    const opt = document.createElement('option');
+    opt.value = ex.id || ex.name;
+    opt.textContent = ex.name;
+    if (prev && (prev === ex.id || prev === ex.name)) {
+      opt.selected = true;
+      historyExerciseFilter = prev; // 保持
+    }
+    sel.appendChild(opt);
+  });
+  // 前回選択が候補外になった場合はリセット
+  if (prev && !exercisesInFilter.some(ex => ex.id === prev || ex.name === prev)) {
+    historyExerciseFilter = '';
+    sel.value = '';
+  }
+}
+
+// フィルタを適用してエントリを絞り込む共通ユーティリティ
+function getFilteredEntries() {
+  let entries = getEntries();
+  if (historyMuscleFilter) {
+    entries = entries.filter(e => e.muscleGroup === historyMuscleFilter);
+  }
+  if (historyExerciseFilter) {
+    entries = entries.filter(e =>
+      e.exerciseId === historyExerciseFilter || e.exerciseName === historyExerciseFilter
+    );
+  }
+  return entries;
+}
+
 function renderHistoryList() {
-  const entries = getEntries();
+  const entries = getFilteredEntries();
   const container = document.getElementById('history-list');
   const empty = document.getElementById('history-empty');
 
@@ -656,7 +753,7 @@ function renderCalendarView() {
     if (child.id !== 'history-empty') child.remove();
   });
 
-  const entries = getEntries();
+  const entries = getFilteredEntries();
   const byDate = {};
   entries.forEach(e => {
     if (!byDate[e.date]) byDate[e.date] = [];
@@ -823,6 +920,12 @@ function renderCalendarView() {
     renderCalendarView();
   });
 }
+
+// 種目フィルタ変更
+document.getElementById('history-exercise-select-filter').addEventListener('change', (e) => {
+  historyExerciseFilter = e.target.value;
+  renderHistory();
+});
 
 // History view toggle
 document.getElementById('history-list-btn').addEventListener('click', () => {
