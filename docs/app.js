@@ -59,7 +59,7 @@ const MUSCLE_COLORS = {
   '胸':  { activeBg: '#dc2626', border: '#dc2626', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5' },
   '背中': { activeBg: '#2563eb', border: '#2563eb', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd' },
   '脚':  { activeBg: '#16a34a', border: '#16a34a', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac' },
-  '肩':  { activeBg: '#ea580c', border: '#ea580c', tagBg: 'rgba(234,88,12,0.18)',  tagBorder: '#ea580c', tagText: '#fdba74' },
+  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a' },
   '腕':  { activeBg: '#9333ea', border: '#9333ea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe' },
   '腹':  { activeBg: '#0d9488', border: '#0d9488', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4' },
 };
@@ -303,6 +303,8 @@ document.querySelectorAll('.muscle-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     currentMuscleGroup = currentMuscleGroup === btn.dataset.muscle ? '' : btn.dataset.muscle;
     updateMuscleBtns('.muscle-btn', currentMuscleGroup);
+    // Refresh dropdown to apply muscle group filter
+    showExerciseDropdown(exerciseInput.value);
   });
 });
 
@@ -403,10 +405,23 @@ document.addEventListener('click', (e) => {
 function showExerciseDropdown(query) {
   const exercises = getExercises();
   const q = query.toLowerCase().trim();
-  const filtered = exercises.filter(ex => ex.name.toLowerCase().includes(q));
+
+  // When muscle group is selected and no text typed: show only that muscle's exercises
+  // When text typed: search across all exercises but mark muscle matches first
+  let muscleMatches = [];
+  let otherMatches = [];
+
+  exercises.forEach(ex => {
+    const nameMatch = ex.name.toLowerCase().includes(q);
+    if (!nameMatch) return;
+    const hasMuscle = currentMuscleGroup && (ex.muscleGroups || []).includes(currentMuscleGroup);
+    if (hasMuscle) muscleMatches.push(ex);
+    else if (!currentMuscleGroup || q) otherMatches.push(ex); // show others only if no filter or text typed
+  });
 
   exerciseDropdown.innerHTML = '';
 
+  // "Add new" option when typing something not yet registered
   if (q && !exercises.some(ex => ex.name.toLowerCase() === q)) {
     const addNew = document.createElement('div');
     addNew.className = 'px-4 py-3 text-sm text-indigo-400 font-semibold border-b border-gray-700 cursor-pointer hover:bg-gray-700 flex items-center gap-2';
@@ -418,12 +433,15 @@ function showExerciseDropdown(query) {
     exerciseDropdown.appendChild(addNew);
   }
 
-  if (filtered.length === 0 && !q) {
-    exerciseDropdown.classList.add('hidden');
-    return;
+  // Section header when muscle filter is active
+  if (currentMuscleGroup && muscleMatches.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'px-4 pt-2 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider';
+    label.textContent = `${currentMuscleGroup}のトレーニング`;
+    exerciseDropdown.appendChild(label);
   }
 
-  filtered.forEach(ex => {
+  const renderItem = (ex) => {
     const item = document.createElement('div');
     item.className = 'px-4 py-3 text-sm text-white cursor-pointer hover:bg-gray-700 transition-colors';
     item.textContent = ex.name;
@@ -432,9 +450,22 @@ function showExerciseDropdown(query) {
       exerciseDropdown.classList.add('hidden');
     });
     exerciseDropdown.appendChild(item);
-  });
+  };
 
-  if (exerciseDropdown.children.length > 0) {
+  muscleMatches.forEach(renderItem);
+
+  // Divider between muscle matches and others (only when mixing)
+  if (currentMuscleGroup && muscleMatches.length > 0 && otherMatches.length > 0) {
+    const div = document.createElement('div');
+    div.className = 'px-4 pt-2 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider border-t border-gray-700 mt-1';
+    div.textContent = 'その他';
+    exerciseDropdown.appendChild(div);
+  }
+  otherMatches.forEach(renderItem);
+
+  const hasItems = muscleMatches.length > 0 || otherMatches.length > 0;
+  const hasAddNew = q && !exercises.some(ex => ex.name.toLowerCase() === q);
+  if (hasItems || hasAddNew) {
     exerciseDropdown.classList.remove('hidden');
   } else {
     exerciseDropdown.classList.add('hidden');
@@ -459,10 +490,20 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
 
   if (validSets.length === 0) { alert('有効なセットを1つ以上入力してください'); return; }
 
-  // Save exercise if new
-  const exercises = getExercises();
-  if (!exercises.some(ex => ex.name.toLowerCase() === exerciseName.toLowerCase())) {
-    exercises.push({ id: genId(), name: exerciseName });
+  // Save exercise if new, or update muscle group association
+  let exercises = getExercises();
+  const existing = exercises.find(ex => ex.name.toLowerCase() === exerciseName.toLowerCase());
+  if (!existing) {
+    const newEx = { id: genId(), name: exerciseName, muscleGroups: currentMuscleGroup ? [currentMuscleGroup] : [] };
+    exercises.push(newEx);
+    saveExercises(exercises);
+  } else if (currentMuscleGroup && !(existing.muscleGroups || []).includes(currentMuscleGroup)) {
+    // Associate this muscle group with the existing exercise
+    exercises = exercises.map(ex =>
+      ex.id === existing.id
+        ? { ...ex, muscleGroups: [...(ex.muscleGroups || []), currentMuscleGroup] }
+        : ex
+    );
     saveExercises(exercises);
   }
 
@@ -1194,6 +1235,28 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   };
   reader.readAsText(file);
 });
+
+// ============================================================
+// THEME TOGGLE
+// ============================================================
+
+const THEME_KEY = 'wt_theme';
+
+function applyTheme(theme) {
+  const isDark = theme !== 'light';
+  document.body.classList.toggle('light-mode', !isDark);
+  document.getElementById('theme-icon-sun').classList.toggle('hidden', !isDark);
+  document.getElementById('theme-icon-moon').classList.toggle('hidden', isDark);
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+  const current = localStorage.getItem(THEME_KEY) || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// Apply saved theme immediately (before Firebase / render)
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 
 // ============================================================
 // FIREBASE — AUTH & FIRESTORE SYNC
