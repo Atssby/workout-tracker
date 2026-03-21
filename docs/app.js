@@ -524,10 +524,10 @@ function getSuggestionsForMuscle(muscleGroup) {
   // 直近5セッション内のエントリのみ抽出
   const recentEntries = allEntries.filter(e => last5Dates.has(e.date));
 
-  // 種目ごとに「最新エントリ」だけ残す
+  // 種目ごとに「最新エントリ」だけ残す（IDが異なっても同名なら同一種目として扱う）
   const latestByExercise = {};
   recentEntries.forEach(entry => {
-    const key = entry.exerciseId || entry.exerciseName;
+    const key = (entry.exerciseName || '').trim().toLowerCase();
     if (!latestByExercise[key] || entry.date > latestByExercise[key].date) {
       latestByExercise[key] = entry;
     }
@@ -1669,8 +1669,12 @@ document.getElementById('dedup-btn').addEventListener('click', () => {
   const before = getExercises().length;
   deduplicateExercises();
   const after = getExercises().length;
-  const removed = before - after;
-  showToast(removed > 0 ? `${removed}件の重複種目を統合しました` : '重複は見つかりませんでした');
+  const merged = before - after;
+  const repaired = repairOrphanedExerciseIds();
+  const total = merged + repaired;
+  showToast(total > 0
+    ? `修復完了: 重複統合 ${merged}件 / ID修復 ${repaired}件`
+    : '問題は見つかりませんでした');
   document.getElementById('backup-modal').classList.add('hidden');
 });
 document.getElementById('backup-modal').addEventListener('click', (e) => {
@@ -1720,7 +1724,8 @@ document.getElementById('import-file').addEventListener('change', (e) => {
       // Merge gym times
       const mergedTimes = { ...data.gymTimes, ...getGymTimes() };
       saveGymTimes(mergedTimes);
-      deduplicateExercises(); // インポートで重複が生じた場合も除去
+      deduplicateExercises();      // インポートで重複が生じた場合も除去
+      repairOrphanedExerciseIds(); // インポートエントリの孤立IDも修復
       showToast(`${data.entries.length}件をインポートしました！`);
       document.getElementById('backup-modal').classList.add('hidden');
       switchTab('today');
@@ -1881,7 +1886,8 @@ function initFirebase() {
       updateMenuUserSection(user);
       document.getElementById('login-overlay').classList.add('hidden');
       await pullFromFirestore();
-      deduplicateExercises(); // Firestoreデータに重複がある場合も除去
+      deduplicateExercises();       // 同名種目の統合
+      repairOrphanedExerciseIds();  // 孤立IDの修復
       setupRealtimeListener();
       currentUnit = getDefaultUnit();
       renderToday();
@@ -1994,7 +2000,7 @@ function deduplicateExercises() {
   });
   saveExercises(cleanExercises);
 
-  // エントリのexerciseIdを修正
+  // エントリのexerciseIdを修正（重複統合によるリマップ）
   const entries = getEntries();
   let changed = false;
   const fixedEntries = entries.map(e => {
@@ -2007,6 +2013,32 @@ function deduplicateExercises() {
   if (changed) saveEntries(fixedEntries);
 
   console.log(`[dedup] ${duplicateGroups.length}件の重複種目を統合しました`);
+}
+
+// 孤立exerciseId修復: exercises リストに存在しないIDを持つエントリを種目名で突合して修正
+function repairOrphanedExerciseIds() {
+  const exercises = getExercises();
+  if (exercises.length === 0) return 0;
+
+  const idSet     = new Set(exercises.map(ex => ex.id));
+  const nameToId  = {};
+  exercises.forEach(ex => { nameToId[ex.name.trim().toLowerCase()] = ex.id; });
+
+  const entries = getEntries();
+  let repaired = 0;
+  const fixed = entries.map(e => {
+    if (idSet.has(e.exerciseId)) return e; // IDが正常に存在する
+    // 孤立ID → 種目名でマッチング
+    const matchId = nameToId[e.exerciseName?.trim().toLowerCase()];
+    if (matchId) {
+      repaired++;
+      return { ...e, exerciseId: matchId };
+    }
+    return e;
+  });
+  if (repaired > 0) saveEntries(fixed);
+  console.log(`[repair] ${repaired}件のエントリのexerciseIdを修復しました`);
+  return repaired;
 }
 
 (function init() {
