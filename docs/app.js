@@ -52,6 +52,28 @@ function formatDate(dateStr) {
 }
 
 // ============================================================
+// MUSCLE COLOR MAP
+// ============================================================
+
+const MUSCLE_COLORS = {
+  '胸':  { activeBg: '#dc2626', border: '#dc2626', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5' },
+  '背中': { activeBg: '#2563eb', border: '#2563eb', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd' },
+  '脚':  { activeBg: '#16a34a', border: '#16a34a', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac' },
+  '肩':  { activeBg: '#ea580c', border: '#ea580c', tagBg: 'rgba(234,88,12,0.18)',  tagBorder: '#ea580c', tagText: '#fdba74' },
+  '腕':  { activeBg: '#9333ea', border: '#9333ea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe' },
+  '腹':  { activeBg: '#0d9488', border: '#0d9488', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4' },
+};
+
+function muscleTagHtml(muscle) {
+  if (!muscle) return '';
+  const c = MUSCLE_COLORS[muscle];
+  if (c) {
+    return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ml-1" style="background:${c.tagBg};border:1px solid ${c.tagBorder};color:${c.tagText}">${muscle}</span>`;
+  }
+  return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300 ml-1">${muscle}</span>`;
+}
+
+// ============================================================
 // STATE
 // ============================================================
 
@@ -142,9 +164,6 @@ function buildEntryCard(entry, showActions, onDelete) {
   const totalVol = entry.sets.reduce((s, set) => s + set.weight * set.reps, 0);
   const maxW = Math.max(...entry.sets.map(s => s.weight));
   const unit = entry.sets[0]?.unit || 'kg';
-  const muscleTag = entry.muscleGroup
-    ? `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300 ml-2">${entry.muscleGroup}</span>`
-    : '';
 
   const setsHtml = entry.sets.map((s, i) =>
     `<div class="flex items-center gap-3 py-1">
@@ -155,11 +174,15 @@ function buildEntryCard(entry, showActions, onDelete) {
     </div>`
   ).join('');
 
+  const memoHtml = entry.memo
+    ? `<div class="mt-2 pt-2 border-t border-gray-800 text-xs text-gray-500 leading-relaxed whitespace-pre-wrap">${entry.memo}</div>`
+    : '';
+
   card.innerHTML = `
     <div class="flex items-start justify-between mb-3">
       <div class="flex-1 min-w-0">
         <div class="flex items-center flex-wrap gap-1">
-          <span class="text-base font-bold text-white">${entry.exerciseName}</span>${muscleTag}
+          <span class="text-base font-bold text-white">${entry.exerciseName}</span>${muscleTagHtml(entry.muscleGroup)}
         </div>
         <div class="text-xs text-gray-500 mt-0.5">${entry.sets.length}セット</div>
       </div>
@@ -177,6 +200,7 @@ function buildEntryCard(entry, showActions, onDelete) {
           <button class="text-xs text-red-500 font-medium delete-entry-btn" data-id="${entry.id}">削除</button>
         </div>` : ''}
     </div>
+    ${memoHtml}
   `;
 
   if (showActions) {
@@ -245,6 +269,9 @@ function initAddForm() {
   // Reset muscle group
   currentMuscleGroup = '';
   updateMuscleBtns('.muscle-btn', '');
+
+  // Reset memo
+  document.getElementById('add-memo').value = '';
 }
 
 function updateMuscleBtns(selector, selected) {
@@ -252,7 +279,18 @@ function updateMuscleBtns(selector, selected) {
     const active = btn.dataset.muscle === selected;
     const base = 'px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors';
     const cls = btn.classList.contains('edit-muscle-btn') ? 'edit-muscle-btn' : 'muscle-btn';
-    btn.className = `${cls} ${base} ${active ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-400'}`;
+    btn.className = `${cls} ${base}`;
+    const c = MUSCLE_COLORS[btn.dataset.muscle];
+    if (active && c) {
+      btn.style.backgroundColor = c.activeBg;
+      btn.style.borderColor     = c.border;
+      btn.style.color           = '#ffffff';
+    } else {
+      btn.style.backgroundColor = '';
+      btn.style.borderColor     = '';
+      btn.style.color           = '';
+      btn.classList.add('bg-gray-900', 'border-gray-800', 'text-gray-400');
+    }
   });
 }
 
@@ -435,6 +473,8 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
   const allExercises = getExercises();
   const matchExercise = allExercises.find(ex => ex.name.toLowerCase() === exerciseName.toLowerCase());
 
+  const memo = document.getElementById('add-memo').value.trim();
+
   const entry = {
     id: genId(),
     date,
@@ -444,6 +484,7 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
     exerciseName: matchExercise?.name || exerciseName,
     muscleGroup: currentMuscleGroup,
     sets: validSets,
+    memo,
     createdAt: new Date().toISOString(),
   };
 
@@ -510,9 +551,7 @@ function renderHistory() {
 
     // Collect unique muscle groups for this date
     const muscles = [...new Set(dateEntries.map(e => e.muscleGroup).filter(Boolean))];
-    const muscleTagsHtml = muscles.map(m =>
-      `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300">${m}</span>`
-    ).join('');
+    const muscleTagsHtml = muscles.map(m => muscleTagHtml(m)).join('');
 
     const header = document.createElement('div');
     header.className = 'px-4 py-3 flex items-center justify-between cursor-pointer';
@@ -773,6 +812,7 @@ function openEditModal(id) {
   editMuscleGroup = entry.muscleGroup || '';
 
   document.getElementById('edit-exercise-display').textContent = entry.exerciseName;
+  document.getElementById('edit-memo').value = entry.memo || '';
   updateEditUnitButtons();
   updateMuscleBtns('.edit-muscle-btn', editMuscleGroup);
   renderEditSets();
@@ -845,9 +885,10 @@ document.getElementById('edit-save-btn').addEventListener('click', () => {
     .filter(s => s.weight > 0 && s.reps > 0);
   if (validSets.length === 0) { alert('有効なセットを1つ以上入力してください'); return; }
 
+  const editMemo = document.getElementById('edit-memo').value.trim();
   const entries = getEntries().map(e => {
     if (e.id !== editingEntryId) return e;
-    return { ...e, sets: validSets, muscleGroup: editMuscleGroup };
+    return { ...e, sets: validSets, muscleGroup: editMuscleGroup, memo: editMemo };
   });
   saveEntries(entries);
   closeEditModal();
@@ -977,12 +1018,20 @@ async function pullFromFirestore() {
       fsUserRef('exercises').get(),
       fsUserRef('settings').get(),
     ]);
-    if (eSnap.exists && eSnap.data().items) save(KEYS.entries,  eSnap.data().items);
+    let fsHadEntries = false;
+    if (eSnap.exists && eSnap.data().items) {
+      save(KEYS.entries, eSnap.data().items);
+      fsHadEntries = true;
+    }
     if (xSnap.exists && xSnap.data().items) save(KEYS.exercises, xSnap.data().items);
     if (sSnap.exists) {
       const s = sSnap.data();
       if (s.defaultUnit) save(KEYS.defaultUnit, s.defaultUnit);
       if (s.gymTimes)    save(KEYS.gymTime,     s.gymTimes);
+    }
+    // 初回ログイン: Firestoreが空でもローカルにデータがある場合は即プッシュ
+    if (!fsHadEntries && getEntries().length > 0) {
+      await pushToFirestore();
     }
   } catch(e) { console.warn('Firestore pull failed:', e); }
 }
