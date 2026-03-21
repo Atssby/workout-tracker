@@ -421,7 +421,7 @@ function showExerciseDropdown(query) {
     if (!nameMatch) return;
     const hasMuscle = currentMuscleGroup && (ex.muscleGroups || []).includes(currentMuscleGroup);
     if (hasMuscle) muscleMatches.push(ex);
-    else if (!currentMuscleGroup || q) otherMatches.push(ex); // show others only if no filter or text typed
+    else otherMatches.push(ex); // 部位未紐付けの種目も常に「その他」に表示
   });
 
   exerciseDropdown.innerHTML = '';
