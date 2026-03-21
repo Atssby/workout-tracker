@@ -33,12 +33,12 @@
   </script>
   <style>
     * { -webkit-tap-highlight-color: transparent; }
-    body { overscroll-behavior: none; }
+    body { overscroll-behavior: none; height: 100dvh; } /* dvh = Safari下部バー考慮 */
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
     .safe-top { padding-top: env(safe-area-inset-top, 0px); }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .tab-bar { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
+    .tab-bar { padding-bottom: max(env(safe-area-inset-bottom), 12px); }
     ::-webkit-scrollbar { display: none; }
     .page { display: none; }
     .page.active { display: block; }
@@ -82,7 +82,7 @@
     body.light-mode .bg-indigo-700   { color: #ffffff !important; }
   </style>
 </head>
-<body class="dark bg-gray-950 text-gray-100 h-screen flex flex-col overflow-hidden">
+<body class="dark bg-gray-950 text-gray-100 flex flex-col overflow-hidden" style="height:100dvh">
 
 <div id="app" class="flex flex-col h-full">
   <!-- Header -->
