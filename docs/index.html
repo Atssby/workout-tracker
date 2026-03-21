@@ -227,7 +227,14 @@
         <button id="today-add-btn" class="text-indigo-400 text-sm font-medium hover:text-indigo-300 transition-colors">＋ 部位なしで追加</button>
       </div>
       <!-- 部位クイック選択（タップで提案付きAddへ） -->
-      <div id="today-muscle-btns" class="flex flex-wrap gap-2 mb-4"></div>
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button data-today-muscle="胸"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#dc262622;border-color:#dc2626;color:#dc2626;">＋ 胸</button>
+        <button data-today-muscle="背中" class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#2563eb22;border-color:#2563eb;color:#2563eb;">＋ 背中</button>
+        <button data-today-muscle="脚"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#16a34a22;border-color:#16a34a;color:#16a34a;">＋ 脚</button>
+        <button data-today-muscle="肩"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#ca8a0422;border-color:#ca8a04;color:#ca8a04;">＋ 肩</button>
+        <button data-today-muscle="腕"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#9333ea22;border-color:#9333ea;color:#9333ea;">＋ 腕</button>
+        <button data-today-muscle="腹"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#0d948822;border-color:#0d9488;color:#0d9488;">＋ 腹</button>
+      </div>
 
       <!-- 今日の記録サマリー（エントリ数のみ表示、タップで履歴へ） -->
       <div id="today-summary" class="hidden">

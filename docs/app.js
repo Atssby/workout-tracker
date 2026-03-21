@@ -158,20 +158,6 @@ function renderToday() {
   if (todayTime.in) document.getElementById('gym-in-input').value = todayTime.in;
   if (todayTime.out) document.getElementById('gym-out-input').value = todayTime.out;
 
-  // 部位クイック選択ボタンを描画
-  const muscleBtnContainer = document.getElementById('today-muscle-btns');
-  muscleBtnContainer.innerHTML = '';
-  ['胸', '背中', '脚', '肩', '腕', '腹'].forEach(m => {
-    const btn = document.createElement('button');
-    const c = MUSCLE_COLORS[m];
-    btn.type = 'button';
-    btn.textContent = `＋ ${m}`;
-    btn.className = 'flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors';
-    btn.style.cssText = `background-color:${c.activeBg}22;border-color:${c.border};color:${c.activeBg};`;
-    btn.addEventListener('click', () => switchToAddWithMuscle(m));
-    muscleBtnContainer.appendChild(btn);
-  });
-
   const entries = getEntries().filter(e => e.date === today);
   const summary = document.getElementById('today-summary');
   const empty = document.getElementById('today-empty');
@@ -278,6 +264,11 @@ document.getElementById('save-gym-time-btn').addEventListener('click', () => {
 
 document.getElementById('today-add-btn').addEventListener('click', () => {
   switchToAddWithMuscle(''); // 部位なしで通常追加
+});
+
+// 部位クイック選択ボタン（静的HTML）のクリックハンドラ
+document.querySelectorAll('.today-muscle-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchToAddWithMuscle(btn.dataset.todayMuscle));
 });
 
 // ============================================================
