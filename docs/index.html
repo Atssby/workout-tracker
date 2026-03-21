@@ -35,7 +35,7 @@
     * { -webkit-tap-highlight-color: transparent; }
     body { overscroll-behavior: none; height: 100dvh; } /* dvh = Safari下部バー考慮 */
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
-    .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+    .safe-top { padding-top: calc(env(safe-area-inset-top, 0px) + 12px) !important; }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
     .tab-bar { padding-bottom: max(env(safe-area-inset-bottom), 12px); }
@@ -86,7 +86,7 @@
 
 <div id="app" class="flex flex-col h-full">
   <!-- Header -->
-  <div id="header" class="safe-top bg-gray-950 border-b border-gray-800 px-4 py-3 flex-shrink-0 flex items-center justify-between">
+  <div id="header" class="safe-top bg-gray-950 border-b border-gray-800 px-4 pb-3 flex-shrink-0 flex items-center justify-between">
     <h1 id="page-title" class="text-lg font-bold text-white">今日</h1>
     <div class="flex items-center gap-2">
       <div id="sync-indicator" class="hidden text-xs text-gray-600 flex items-center gap-1">
