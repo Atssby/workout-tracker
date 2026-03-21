@@ -85,6 +85,7 @@ let currentUnit = getDefaultUnit();
 let sets = [{ weight: '', reps: '' }];
 let graphMode = 'weight'; // 'weight' | 'volume'
 let graphChart = null;
+let graphMuscleFilter = ''; // '' = すべて
 let currentMuscleGroup = '';
 let editingEntryId = null;
 let editSets = [];
@@ -135,6 +136,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // TODAY PAGE
 // ============================================================
 
+// 部位を選択した状態でAddページへ遷移（提案も自動ロード）
+function switchToAddWithMuscle(muscleGroup) {
+  initAddForm();
+  if (muscleGroup) {
+    currentMuscleGroup = muscleGroup;
+    updateMuscleBtns('.muscle-btn', muscleGroup);
+    renderSuggestions(muscleGroup);
+  }
+  switchTab('add');
+}
+
 function renderToday() {
   const today = todayStr();
   const gymTimes = getGymTimes();
@@ -146,25 +158,44 @@ function renderToday() {
   if (todayTime.in) document.getElementById('gym-in-input').value = todayTime.in;
   if (todayTime.out) document.getElementById('gym-out-input').value = todayTime.out;
 
+  // 部位クイック選択ボタンを描画
+  const muscleBtnContainer = document.getElementById('today-muscle-btns');
+  muscleBtnContainer.innerHTML = '';
+  ['胸', '背中', '脚', '肩', '腕', '腹'].forEach(m => {
+    const btn = document.createElement('button');
+    const c = MUSCLE_COLORS[m];
+    btn.type = 'button';
+    btn.textContent = `＋ ${m}`;
+    btn.className = 'flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors';
+    btn.style.cssText = `background-color:${c.activeBg}22;border-color:${c.border};color:${c.activeBg};`;
+    btn.addEventListener('click', () => switchToAddWithMuscle(m));
+    muscleBtnContainer.appendChild(btn);
+  });
+
   const entries = getEntries().filter(e => e.date === today);
-  const container = document.getElementById('today-entries');
+  const summary = document.getElementById('today-summary');
   const empty = document.getElementById('today-empty');
 
-  // Clear existing entry cards
-  Array.from(container.children).forEach(child => {
-    if (child.id !== 'today-empty') child.remove();
-  });
-
   if (entries.length === 0) {
+    summary.classList.add('hidden');
     empty.classList.remove('hidden');
-    return;
+  } else {
+    empty.classList.add('hidden');
+    summary.classList.remove('hidden');
+    // 部位ごとの件数をまとめて表示
+    const muscleCounts = {};
+    entries.forEach(e => {
+      const m = e.muscleGroup || '未設定';
+      muscleCounts[m] = (muscleCounts[m] || 0) + 1;
+    });
+    const parts = Object.entries(muscleCounts).map(([m, n]) => `${m} ${n}種目`).join('・');
+    document.getElementById('today-summary-count').textContent = parts;
   }
-  empty.classList.add('hidden');
-
-  entries.forEach(entry => {
-    container.appendChild(buildEntryCard(entry, true, renderToday));
-  });
 }
+
+document.getElementById('today-summary-btn').addEventListener('click', () => {
+  switchTab('history');
+});
 
 function buildEntryCard(entry, showActions, onDelete) {
   const card = document.createElement('div');
@@ -246,7 +277,7 @@ document.getElementById('save-gym-time-btn').addEventListener('click', () => {
 });
 
 document.getElementById('today-add-btn').addEventListener('click', () => {
-  switchTab('add');
+  switchToAddWithMuscle(''); // 部位なしで通常追加
 });
 
 // ============================================================
@@ -279,6 +310,9 @@ function initAddForm() {
   currentMuscleGroup = '';
   updateMuscleBtns('.muscle-btn', '');
 
+  // Reset suggestions panel
+  document.getElementById('suggestions-panel').classList.add('hidden');
+
   // Reset memo
   document.getElementById('add-memo').value = '';
 }
@@ -308,9 +342,141 @@ document.querySelectorAll('.muscle-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     currentMuscleGroup = currentMuscleGroup === btn.dataset.muscle ? '' : btn.dataset.muscle;
     updateMuscleBtns('.muscle-btn', currentMuscleGroup);
-    // Refresh dropdown to apply muscle group filter
     showExerciseDropdown(exerciseInput.value);
+    renderSuggestions(currentMuscleGroup);
   });
+});
+
+// ============================================================
+// 前回メニュー提案（過去5セッションの種目を自動サジェスト）
+// ============================================================
+
+let suggestionsVisible = true; // 非表示トグル状態
+
+// 部位の直近5セッションに登場した種目 × 最新の負荷・回数を返す
+function getSuggestionsForMuscle(muscleGroup) {
+  if (!muscleGroup) return [];
+  const allEntries = getEntries().filter(e => e.muscleGroup === muscleGroup);
+  if (allEntries.length === 0) return [];
+
+  // 直近5セッション（ユニークな日付）を取得
+  const sortedDates = [...new Set(allEntries.map(e => e.date))].sort().reverse();
+  const last5Dates = new Set(sortedDates.slice(0, 5));
+
+  // 直近5セッション内のエントリのみ抽出
+  const recentEntries = allEntries.filter(e => last5Dates.has(e.date));
+
+  // 種目ごとに「最新エントリ」だけ残す
+  const latestByExercise = {};
+  recentEntries.forEach(entry => {
+    const key = entry.exerciseId || entry.exerciseName;
+    if (!latestByExercise[key] || entry.date > latestByExercise[key].date) {
+      latestByExercise[key] = entry;
+    }
+  });
+
+  // 直近日から登場した順に並べる（最近やったセッションの種目を先頭に）
+  return Object.values(latestByExercise).sort((a, b) => {
+    if (b.date !== a.date) return b.date.localeCompare(a.date);
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+}
+
+// セット内容を1行テキストに変換（例: 60kg×10 / 55kg×10 / 50kg×10）
+function formatSetsCompact(sets) {
+  if (!sets || sets.length === 0) return '記録なし';
+  // 全セット同じ重量・回数なら "60kg × 10回 × 3セット" と表示
+  const allSame = sets.every(s => s.weight === sets[0].weight && s.reps === sets[0].reps);
+  if (allSame && sets.length > 1) {
+    return `${sets[0].weight}${sets[0].unit} × ${sets[0].reps}回 × ${sets.length}セット`;
+  }
+  return sets.map(s => `${s.weight}${s.unit}×${s.reps}回`).join(' / ');
+}
+
+// 提案パネルを描画
+function renderSuggestions(muscleGroup) {
+  const panel = document.getElementById('suggestions-panel');
+  const list  = document.getElementById('suggestions-list');
+  const label = document.getElementById('suggestions-label');
+
+  if (!muscleGroup) { panel.classList.add('hidden'); return; }
+
+  const suggestions = getSuggestionsForMuscle(muscleGroup);
+  if (suggestions.length === 0) { panel.classList.add('hidden'); return; }
+
+  // パネルのヘッダー色を部位色に合わせる
+  const mc = MUSCLE_COLORS[muscleGroup];
+  if (mc) label.style.color = mc.activeBg;
+  else label.style.color = '';
+
+  list.innerHTML = '';
+  list.classList.toggle('hidden', !suggestionsVisible);
+
+  suggestions.forEach(entry => {
+    const [, m, d] = entry.date.split('-');
+    const dateStr  = `${parseInt(m)}/${parseInt(d)}`;
+    const setsStr  = formatSetsCompact(entry.sets);
+
+    const card = document.createElement('button');
+    card.type  = 'button';
+    card.dataset.entryId = entry.id;
+    card.className = 'suggestion-card w-full text-left bg-gray-900 border border-gray-800 rounded-2xl px-3 py-2.5 hover:border-indigo-500 active:bg-gray-800 transition-colors';
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between gap-2">
+        <span class="font-semibold text-sm text-white leading-tight">${entry.exerciseName}</span>
+        <span class="text-xs text-gray-500 flex-shrink-0">${dateStr}</span>
+      </div>
+      <div class="text-xs text-gray-400 mt-0.5 leading-relaxed">${setsStr}</div>
+    `;
+
+    card.addEventListener('click', () => applySuggestion(entry, card));
+    list.appendChild(card);
+  });
+
+  panel.classList.remove('hidden');
+}
+
+// 提案カードをタップ → 種目・セット・単位をフォームに流し込む
+function applySuggestion(entry, cardEl) {
+  // 他のカードのハイライトを外して、このカードをハイライト
+  document.querySelectorAll('.suggestion-card').forEach(c =>
+    c.classList.remove('border-indigo-500', 'bg-indigo-900/20')
+  );
+  cardEl.classList.add('border-indigo-500', 'bg-indigo-900/20');
+
+  // 種目名を入力
+  exerciseInput.value = entry.exerciseName;
+  document.getElementById('exercise-dropdown').classList.add('hidden');
+
+  // 単位を合わせる（最初のセットの単位を採用）
+  if (entry.sets && entry.sets.length > 0) {
+    const unit = entry.sets[0].unit || currentUnit;
+    if (unit !== currentUnit) {
+      currentUnit = unit;
+      saveDefaultUnit(currentUnit);
+      document.getElementById('unit-kg').className  = currentUnit === 'kg'
+        ? 'flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white'
+        : 'flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
+      document.getElementById('unit-lbs').className = currentUnit === 'lbs'
+        ? 'flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white'
+        : 'flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
+    }
+  }
+
+  // セットを流し込む（重量・回数のみ、単位はグローバルcurrentUnitで管理）
+  sets = (entry.sets || []).map(s => ({ weight: String(s.weight), reps: String(s.reps) }));
+  if (sets.length === 0) sets = [{ weight: '', reps: '' }];
+  renderSets();
+
+  // メモは前回の内容を引き継がない（ユーザーが書きやすいよう空に）
+}
+
+// 非表示トグル
+document.getElementById('suggestions-toggle').addEventListener('click', () => {
+  suggestionsVisible = !suggestionsVisible;
+  document.getElementById('suggestions-list').classList.toggle('hidden', !suggestionsVisible);
+  document.getElementById('suggestions-toggle').textContent = suggestionsVisible ? '非表示' : '表示';
 });
 
 function renderSets() {
@@ -945,9 +1111,62 @@ document.getElementById('history-cal-btn').addEventListener('click', () => {
 // ============================================================
 
 function renderGraphPage() {
-  const exercises = getExercises();
+  renderGraphMusclePills();
+  renderGraphExerciseSelect();
+  renderGraph();
+}
+
+function renderGraphMusclePills() {
+  const pillContainer = document.getElementById('graph-muscle-pills');
+  pillContainer.innerHTML = '';
+  const muscles = ['', '胸', '背中', '脚', '肩', '腕', '腹'];
+  muscles.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors';
+    btn.dataset.muscle = m;
+    btn.textContent = m || 'すべて';
+    const isActive = graphMuscleFilter === m;
+    if (isActive) {
+      const c = MUSCLE_COLORS[m];
+      btn.style.backgroundColor = c ? c.activeBg : '#4f46e5';
+      btn.style.borderColor     = c ? c.border    : '#4f46e5';
+      btn.style.color           = '#ffffff';
+    } else {
+      btn.classList.add('bg-gray-900', 'border-gray-800', 'text-gray-400');
+    }
+    btn.addEventListener('click', () => {
+      graphMuscleFilter = m;
+      renderGraphMusclePills();
+      renderGraphExerciseSelect();
+      renderGraph();
+    });
+    pillContainer.appendChild(btn);
+  });
+}
+
+function renderGraphExerciseSelect() {
+  const allExercises = getExercises();
   const select = document.getElementById('graph-exercise-select');
   const currentVal = select.value;
+
+  // 部位フィルタが選択されている場合は、そのエントリに登場する種目のみ表示
+  let exercises;
+  if (graphMuscleFilter) {
+    const entries = getEntries().filter(e => e.muscleGroup === graphMuscleFilter);
+    const seenIds = new Set();
+    exercises = [];
+    entries.forEach(e => {
+      const key = e.exerciseId || e.exerciseName;
+      if (!seenIds.has(key)) {
+        seenIds.add(key);
+        // 対応するexerciseオブジェクトを探す（なければエントリから生成）
+        const ex = allExercises.find(x => x.id === e.exerciseId) || { id: e.exerciseId || e.exerciseName, name: e.exerciseName };
+        exercises.push(ex);
+      }
+    });
+  } else {
+    exercises = allExercises;
+  }
 
   select.innerHTML = '<option value="">種目を選択してください</option>';
   exercises.forEach(ex => {
@@ -957,8 +1176,10 @@ function renderGraphPage() {
     select.appendChild(opt);
   });
 
-  if (currentVal) select.value = currentVal;
-  renderGraph();
+  // 現在選択中の種目が絞り込み後のリストにあれば維持、なければリセット
+  if (currentVal && exercises.some(ex => ex.id === currentVal)) {
+    select.value = currentVal;
+  }
 }
 
 function renderGraph() {
@@ -1351,7 +1572,13 @@ const THEME_KEY = 'wt_theme';
 
 function applyTheme(theme) {
   const isDark = theme !== 'light';
+  // body.light-mode（CSS override用）と html[data-theme]（FOUC防止 & Mac対応）の両方を更新
   document.body.classList.toggle('light-mode', !isDark);
+  if (isDark) {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
   document.getElementById('theme-icon-sun').classList.toggle('hidden', !isDark);
   document.getElementById('theme-icon-moon').classList.toggle('hidden', isDark);
   localStorage.setItem(THEME_KEY, theme);
@@ -1547,7 +1774,74 @@ if ('serviceWorker' in navigator) {
 // INIT
 // ============================================================
 
+// ============================================================
+// 種目重複除去（同じ名前の種目を統合 & エントリのexerciseIdを修正）
+// ============================================================
+function deduplicateExercises() {
+  const exercises = getExercises();
+  if (exercises.length === 0) return;
+
+  // 名前（小文字）でグループ化
+  const groups = {};
+  exercises.forEach(ex => {
+    const key = ex.name.trim().toLowerCase();
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ex);
+  });
+
+  // 重複があるグループだけ処理
+  const duplicateGroups = Object.values(groups).filter(g => g.length > 1);
+  if (duplicateGroups.length === 0) return;
+
+  // 各グループで「代表」を選ぶ（最も多くのmuscleGroupsを持つものを優先、同数なら最初）
+  const idRemap = {}; // 旧ID → 代表ID のマップ
+  const survivingIds = new Set();
+
+  duplicateGroups.forEach(group => {
+    // muscleGroups の数が多いものを代表に
+    group.sort((a, b) => (b.muscleGroups || []).length - (a.muscleGroups || []).length);
+    const primary = group[0];
+    survivingIds.add(primary.id);
+
+    // 代表のmuscleGroupsに他のグループの情報もマージ
+    const mergedMuscles = [...new Set(group.flatMap(ex => ex.muscleGroups || []))];
+    primary.muscleGroups = mergedMuscles;
+
+    // 2番目以降を代表IDにリマップ
+    group.slice(1).forEach(ex => {
+      idRemap[ex.id] = primary.id;
+    });
+  });
+
+  // 重複を除いた exercises リストを保存
+  const cleanExercises = exercises.filter(ex =>
+    !Object.keys(idRemap).includes(ex.id)
+  );
+  // 代表のmuscleGroupsも更新
+  duplicateGroups.forEach(group => {
+    const primary = group[0];
+    const idx = cleanExercises.findIndex(ex => ex.id === primary.id);
+    if (idx !== -1) cleanExercises[idx] = primary;
+  });
+  saveExercises(cleanExercises);
+
+  // エントリのexerciseIdを修正
+  const entries = getEntries();
+  let changed = false;
+  const fixedEntries = entries.map(e => {
+    if (idRemap[e.exerciseId]) {
+      changed = true;
+      return { ...e, exerciseId: idRemap[e.exerciseId] };
+    }
+    return e;
+  });
+  if (changed) saveEntries(fixedEntries);
+
+  console.log(`[dedup] ${duplicateGroups.length}件の重複種目を統合しました`);
+}
+
 (function init() {
+  deduplicateExercises();  // 起動時に重複種目を自動統合
   currentUnit = getDefaultUnit();
   switchTab('today');  // Show app immediately with local data
   initFirebase();      // Then connect Firebase in background
