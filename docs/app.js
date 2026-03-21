@@ -1665,6 +1665,36 @@ document.getElementById('backup-modal-close').addEventListener('click', () => {
   document.getElementById('backup-modal').classList.add('hidden');
 });
 
+document.getElementById('delete-all-btn').addEventListener('click', () => {
+  document.getElementById('backup-modal').classList.add('hidden');
+
+  // 1段階目の警告
+  if (!confirm('⚠️ 全データを削除します\n\n記録・種目・ジム時間がすべて消去されます。\nこの操作は取り消せません。\n\n続けますか？')) return;
+
+  // 2段階目の確認（より強い警告）
+  if (!confirm('🚨 最終確認\n\n本当に削除してよいですか？\nクラウド（Firestore）のデータも削除されます。\n\n「OK」を押すと即座に削除されます。')) return;
+
+  // ローカルデータ削除
+  save(KEYS.entries,     []);
+  save(KEYS.exercises,   []);
+  save(KEYS.gymTime,     {});
+  save(KEYS.defaultUnit, 'kg');
+
+  // Firestore も削除
+  if (fsUser && fsDb) {
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    Promise.all([
+      fsUserRef('entries').set({ items: [], updatedAt: ts }),
+      fsUserRef('exercises').set({ items: [], updatedAt: ts }),
+      fsUserRef('settings').set({ defaultUnit: 'kg', gymTimes: {}, updatedAt: ts }),
+    ]).catch(e => console.warn('Firestore delete failed:', e));
+  }
+
+  showToast('全データを削除しました');
+  switchTab('today');
+  renderToday();
+});
+
 document.getElementById('dedup-btn').addEventListener('click', () => {
   const before = getExercises().length;
   deduplicateExercises();
