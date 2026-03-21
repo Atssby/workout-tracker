@@ -60,6 +60,11 @@ let currentUnit = getDefaultUnit();
 let sets = [{ weight: '', reps: '' }];
 let graphMode = 'weight'; // 'weight' | 'volume'
 let graphChart = null;
+let currentMuscleGroup = '';
+let editingEntryId = null;
+let editSets = [];
+let editUnit = 'kg';
+let editMuscleGroup = '';
 
 // ============================================================
 // TAB NAVIGATION
@@ -126,17 +131,20 @@ function renderToday() {
   empty.classList.add('hidden');
 
   entries.forEach(entry => {
-    container.appendChild(buildEntryCard(entry, true));
+    container.appendChild(buildEntryCard(entry, true, renderToday));
   });
 }
 
-function buildEntryCard(entry, showDelete) {
+function buildEntryCard(entry, showActions, onDelete) {
   const card = document.createElement('div');
   card.className = 'bg-gray-900 rounded-2xl p-4 border border-gray-800';
 
   const totalVol = entry.sets.reduce((s, set) => s + set.weight * set.reps, 0);
   const maxW = Math.max(...entry.sets.map(s => s.weight));
   const unit = entry.sets[0]?.unit || 'kg';
+  const muscleTag = entry.muscleGroup
+    ? `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300 ml-2">${entry.muscleGroup}</span>`
+    : '';
 
   const setsHtml = entry.sets.map((s, i) =>
     `<div class="flex items-center gap-3 py-1">
@@ -149,11 +157,13 @@ function buildEntryCard(entry, showDelete) {
 
   card.innerHTML = `
     <div class="flex items-start justify-between mb-3">
-      <div>
-        <div class="text-base font-bold text-white">${entry.exerciseName}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center flex-wrap gap-1">
+          <span class="text-base font-bold text-white">${entry.exerciseName}</span>${muscleTag}
+        </div>
         <div class="text-xs text-gray-500 mt-0.5">${entry.sets.length}セット</div>
       </div>
-      <div class="text-right">
+      <div class="text-right ml-3">
         <div class="text-xs text-gray-500">最大</div>
         <div class="text-sm font-bold text-indigo-400">${maxW}${unit}</div>
       </div>
@@ -161,16 +171,23 @@ function buildEntryCard(entry, showDelete) {
     <div class="border-t border-gray-800 pt-2">${setsHtml}</div>
     <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-800">
       <span class="text-xs text-gray-600">総ボリューム: <span class="text-gray-400 font-semibold">${totalVol.toFixed(1)}${unit}</span></span>
-      ${showDelete ? `<button class="text-xs text-red-500 font-medium delete-entry-btn" data-id="${entry.id}">削除</button>` : ''}
+      ${showActions ? `
+        <div class="flex items-center gap-3">
+          <button class="text-xs text-indigo-400 font-medium edit-entry-btn" data-id="${entry.id}">編集</button>
+          <button class="text-xs text-red-500 font-medium delete-entry-btn" data-id="${entry.id}">削除</button>
+        </div>` : ''}
     </div>
   `;
 
-  if (showDelete) {
+  if (showActions) {
+    card.querySelector('.edit-entry-btn').addEventListener('click', () => {
+      openEditModal(entry.id);
+    });
     card.querySelector('.delete-entry-btn').addEventListener('click', () => {
       if (confirm(`「${entry.exerciseName}」の記録を削除しますか？`)) {
         const entries = getEntries().filter(e => e.id !== entry.id);
         saveEntries(entries);
-        renderToday();
+        if (onDelete) onDelete(); else renderToday();
       }
     });
   }
@@ -224,7 +241,28 @@ function initAddForm() {
   // Clear exercise input
   document.getElementById('exercise-input').value = '';
   document.getElementById('exercise-dropdown').classList.add('hidden');
+
+  // Reset muscle group
+  currentMuscleGroup = '';
+  updateMuscleBtns('.muscle-btn', '');
 }
+
+function updateMuscleBtns(selector, selected) {
+  document.querySelectorAll(selector).forEach(btn => {
+    const active = btn.dataset.muscle === selected;
+    const base = 'px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors';
+    const cls = btn.classList.contains('edit-muscle-btn') ? 'edit-muscle-btn' : 'muscle-btn';
+    btn.className = `${cls} ${base} ${active ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-400'}`;
+  });
+}
+
+// Muscle group button handlers (add form)
+document.querySelectorAll('.muscle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentMuscleGroup = currentMuscleGroup === btn.dataset.muscle ? '' : btn.dataset.muscle;
+    updateMuscleBtns('.muscle-btn', currentMuscleGroup);
+  });
+});
 
 function renderSets() {
   const container = document.getElementById('sets-container');
@@ -404,6 +442,7 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
     gymOut,
     exerciseId: matchExercise?.id || genId(),
     exerciseName: matchExercise?.name || exerciseName,
+    muscleGroup: currentMuscleGroup,
     sets: validSets,
     createdAt: new Date().toISOString(),
   };
@@ -469,36 +508,33 @@ function renderHistory() {
     const section = document.createElement('div');
     section.className = 'bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden';
 
+    // Collect unique muscle groups for this date
+    const muscles = [...new Set(dateEntries.map(e => e.muscleGroup).filter(Boolean))];
+    const muscleTagsHtml = muscles.map(m =>
+      `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300">${m}</span>`
+    ).join('');
+
     const header = document.createElement('div');
     header.className = 'px-4 py-3 flex items-center justify-between cursor-pointer';
     header.innerHTML = `
       <div>
-        <div class="text-sm font-bold text-white">${formatDate(date)}</div>
+        <div class="flex items-center flex-wrap gap-1.5">
+          <span class="text-sm font-bold text-white">${formatDate(date)}</span>${muscleTagsHtml}
+        </div>
         <div class="text-xs text-gray-500 mt-0.5">${dateEntries.length}種目 ${gt.in ? `• ${gt.in}〜${gt.out || '?'}` : ''}</div>
       </div>
-      <svg class="toggle-icon w-4 h-4 text-gray-500 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg class="toggle-icon w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="6 9 12 15 18 9"/>
       </svg>
     `;
 
     const body = document.createElement('div');
-    body.className = 'hidden border-t border-gray-800 divide-y divide-gray-800';
+    body.className = 'hidden border-t border-gray-800';
 
     dateEntries.forEach(entry => {
-      const item = document.createElement('div');
-      item.className = 'px-4 py-3';
-      const maxW = Math.max(...entry.sets.map(s => s.weight));
-      const unit = entry.sets[0]?.unit || 'kg';
-      item.innerHTML = `
-        <div class="flex items-center justify-between mb-1">
-          <span class="text-sm font-semibold text-white">${entry.exerciseName}</span>
-          <span class="text-xs text-indigo-400 font-semibold">${maxW}${unit} max</span>
-        </div>
-        <div class="flex gap-3 flex-wrap">
-          ${entry.sets.map((s, i) => `<span class="text-xs text-gray-500">S${i+1}: ${s.weight}${s.unit}×${s.reps}</span>`).join('')}
-        </div>
-      `;
-      body.appendChild(item);
+      const card = buildEntryCard(entry, true, renderHistory);
+      card.className = 'rounded-none border-0 border-b border-gray-800 px-4 py-3 bg-transparent last:border-b-0';
+      body.appendChild(card);
     });
 
     header.addEventListener('click', () => {
@@ -722,6 +758,127 @@ document.getElementById('graph-volume-btn').addEventListener('click', () => {
   document.getElementById('graph-volume-btn').className = 'flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white';
   document.getElementById('graph-weight-btn').className = 'flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
   renderGraph();
+});
+
+// ============================================================
+// EDIT ENTRY MODAL
+// ============================================================
+
+function openEditModal(id) {
+  const entry = getEntries().find(e => e.id === id);
+  if (!entry) return;
+  editingEntryId = id;
+  editSets = entry.sets.map(s => ({ weight: String(s.weight), reps: String(s.reps) }));
+  editUnit = entry.sets[0]?.unit || 'kg';
+  editMuscleGroup = entry.muscleGroup || '';
+
+  document.getElementById('edit-exercise-display').textContent = entry.exerciseName;
+  updateEditUnitButtons();
+  updateMuscleBtns('.edit-muscle-btn', editMuscleGroup);
+  renderEditSets();
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.add('hidden');
+  editingEntryId = null;
+}
+
+function renderEditSets() {
+  const container = document.getElementById('edit-sets-container');
+  container.innerHTML = '';
+  editSets.forEach((set, i) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `
+      <span class="text-xs text-gray-500 w-14 flex-shrink-0">セット${i + 1}</span>
+      <div class="flex-1 relative">
+        <input type="number" inputmode="decimal" placeholder="重量"
+          value="${set.weight}" data-set="${i}" data-field="weight"
+          class="edit-set-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm text-right pr-10 focus:outline-none focus:border-indigo-500" />
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${editUnit}</span>
+      </div>
+      <span class="text-gray-600">×</span>
+      <div class="flex-1 relative">
+        <input type="number" inputmode="numeric" placeholder="回数"
+          value="${set.reps}" data-set="${i}" data-field="reps"
+          class="edit-set-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm text-right pr-8 focus:outline-none focus:border-indigo-500" />
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">回</span>
+      </div>
+      ${editSets.length > 1 ? `<button class="remove-edit-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-lg leading-none transition-colors" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
+    `;
+    container.appendChild(row);
+  });
+
+  container.querySelectorAll('.edit-set-input').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      editSets[parseInt(e.target.dataset.set)][e.target.dataset.field] = e.target.value;
+    });
+  });
+  container.querySelectorAll('.remove-edit-set-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      editSets.splice(parseInt(btn.dataset.set), 1);
+      renderEditSets();
+      updateEditAddSetBtn();
+    });
+  });
+}
+
+function updateEditUnitButtons() {
+  document.getElementById('edit-unit-kg').className = `flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors ${editUnit === 'kg' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-400'}`;
+  document.getElementById('edit-unit-lbs').className = `flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors ${editUnit === 'lbs' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-400'}`;
+}
+
+function updateEditAddSetBtn() {
+  const btn = document.getElementById('edit-add-set-btn');
+  if (editSets.length >= 5) btn.classList.add('opacity-40', 'pointer-events-none');
+  else btn.classList.remove('opacity-40', 'pointer-events-none');
+}
+
+document.getElementById('edit-cancel-btn').addEventListener('click', closeEditModal);
+
+document.getElementById('edit-save-btn').addEventListener('click', () => {
+  if (!editingEntryId) return;
+  const validSets = editSets
+    .filter(s => s.weight !== '' && s.reps !== '')
+    .map(s => ({ weight: parseFloat(s.weight) || 0, unit: editUnit, reps: parseInt(s.reps) || 0 }))
+    .filter(s => s.weight > 0 && s.reps > 0);
+  if (validSets.length === 0) { alert('有効なセットを1つ以上入力してください'); return; }
+
+  const entries = getEntries().map(e => {
+    if (e.id !== editingEntryId) return e;
+    return { ...e, sets: validSets, muscleGroup: editMuscleGroup };
+  });
+  saveEntries(entries);
+  closeEditModal();
+  showToast('更新しました！');
+  if (currentTab === 'today') renderToday();
+  if (currentTab === 'history') renderHistory();
+});
+
+document.getElementById('edit-add-set-btn').addEventListener('click', () => {
+  if (editSets.length >= 5) return;
+  editSets.push({ weight: '', reps: '' });
+  renderEditSets();
+  updateEditAddSetBtn();
+});
+
+document.getElementById('edit-unit-kg').addEventListener('click', () => {
+  editUnit = 'kg';
+  updateEditUnitButtons();
+  renderEditSets();
+});
+document.getElementById('edit-unit-lbs').addEventListener('click', () => {
+  editUnit = 'lbs';
+  updateEditUnitButtons();
+  renderEditSets();
+});
+
+document.querySelectorAll('.edit-muscle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    editMuscleGroup = editMuscleGroup === btn.dataset.muscle ? '' : btn.dataset.muscle;
+    updateMuscleBtns('.edit-muscle-btn', editMuscleGroup);
+  });
 });
 
 // ============================================================

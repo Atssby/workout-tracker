@@ -132,6 +132,19 @@
           <input type="date" id="add-date" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors" />
         </div>
 
+        <!-- Muscle Group -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">部位</label>
+          <div class="flex flex-wrap gap-2" id="muscle-group-btns">
+            <button class="muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="胸">胸</button>
+            <button class="muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="背中">背中</button>
+            <button class="muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="脚">脚</button>
+            <button class="muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="肩">肩</button>
+            <button class="muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="腕">腕</button>
+            <button class="muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="腹">腹</button>
+          </div>
+        </div>
+
         <!-- Gym In/Out -->
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -217,6 +230,46 @@
         </div>
         <canvas id="graph-canvas" class="hidden w-full" style="height: 250px;"></canvas>
         <div id="graph-stats" class="hidden mt-4 grid grid-cols-3 gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Entry Modal -->
+  <div id="edit-modal" class="hidden fixed inset-0 z-40 bg-gray-950 flex flex-col">
+    <div class="safe-top bg-gray-950 border-b border-gray-800 px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <button id="edit-cancel-btn" class="text-sm text-gray-400 font-medium px-1 py-1">キャンセル</button>
+      <h2 class="text-base font-bold text-white">記録を編集</h2>
+      <button id="edit-save-btn" class="text-sm text-indigo-400 font-semibold px-1 py-1">保存</button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4">
+      <div class="space-y-4 pb-8">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">種目</label>
+          <div id="edit-exercise-display" class="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base font-semibold"></div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">部位</label>
+          <div class="flex flex-wrap gap-2" id="edit-muscle-btns">
+            <button class="edit-muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="胸">胸</button>
+            <button class="edit-muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="背中">背中</button>
+            <button class="edit-muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="脚">脚</button>
+            <button class="edit-muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="肩">肩</button>
+            <button class="edit-muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="腕">腕</button>
+            <button class="edit-muscle-btn px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400" data-muscle="腹">腹</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">重量単位</label>
+          <div class="flex gap-2">
+            <button id="edit-unit-kg" class="flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors" data-unit="kg">kg</button>
+            <button id="edit-unit-lbs" class="flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors" data-unit="lbs">lbs</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">セット</label>
+          <div id="edit-sets-container" class="space-y-2"></div>
+        </div>
+        <button id="edit-add-set-btn" class="w-full text-sm text-indigo-400 font-semibold py-3 rounded-2xl border border-indigo-800 hover:bg-indigo-900 transition-colors">+ セット追加</button>
       </div>
     </div>
   </div>
