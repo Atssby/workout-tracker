@@ -56,19 +56,22 @@ function formatDate(dateStr) {
 // ============================================================
 
 const MUSCLE_COLORS = {
-  '胸':  { activeBg: '#dc2626', border: '#dc2626', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5' },
-  '背中': { activeBg: '#2563eb', border: '#2563eb', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd' },
-  '脚':  { activeBg: '#16a34a', border: '#16a34a', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac' },
-  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a' },
-  '腕':  { activeBg: '#9333ea', border: '#9333ea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe' },
-  '腹':  { activeBg: '#0d9488', border: '#0d9488', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4' },
+  //                                                                           ダーク用テキスト  ライト用テキスト（濃色）
+  '胸':  { activeBg: '#dc2626', border: '#dc2626', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5', tagTextLight: '#991b1b' },
+  '背中': { activeBg: '#2563eb', border: '#2563eb', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd', tagTextLight: '#1e40af' },
+  '脚':  { activeBg: '#16a34a', border: '#16a34a', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac', tagTextLight: '#14532d' },
+  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a', tagTextLight: '#78350f' },
+  '腕':  { activeBg: '#9333ea', border: '#9333ea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe', tagTextLight: '#581c87' },
+  '腹':  { activeBg: '#0d9488', border: '#0d9488', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4', tagTextLight: '#134e4a' },
 };
 
 function muscleTagHtml(muscle) {
   if (!muscle) return '';
   const c = MUSCLE_COLORS[muscle];
   if (c) {
-    return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ml-1" style="background:${c.tagBg};border:1px solid ${c.tagBorder};color:${c.tagText}">${muscle}</span>`;
+    const isLight = document.body.classList.contains('light-mode');
+    const textColor = isLight ? c.tagTextLight : c.tagText;
+    return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ml-1" style="background:${c.tagBg};border:1px solid ${c.tagBorder};color:${textColor}">${muscle}</span>`;
   }
   return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300 ml-1">${muscle}</span>`;
 }
