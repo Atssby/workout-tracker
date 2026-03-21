@@ -245,6 +245,13 @@
 
     <!-- History Page -->
     <div id="page-history" class="page p-4 pb-24">
+      <!-- View toggle -->
+      <div class="flex items-center justify-end mb-3">
+        <div class="flex bg-gray-900 border border-gray-800 rounded-xl p-0.5">
+          <button id="history-list-btn" class="history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-indigo-600 text-white" data-mode="list">リスト</button>
+          <button id="history-cal-btn" class="history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors text-gray-500" data-mode="calendar">カレンダー</button>
+        </div>
+      </div>
       <div id="history-list" class="space-y-3">
         <div id="history-empty" class="text-center py-12 text-gray-600">
           <div class="text-4xl mb-3">📅</div>

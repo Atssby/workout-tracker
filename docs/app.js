@@ -87,6 +87,10 @@ let editingEntryId = null;
 let editSets = [];
 let editUnit = 'kg';
 let editMuscleGroup = '';
+let historyViewMode = 'list';
+let calendarYear = new Date().getFullYear();
+let calendarMonth = new Date().getMonth(); // 0-indexed
+let calendarSelectedDate = null;
 
 // ============================================================
 // TAB NAVIGATION
@@ -518,6 +522,20 @@ function showToast(msg) {
 // ============================================================
 
 function renderHistory() {
+  // Update toggle button styles
+  document.getElementById('history-list-btn').className =
+    `history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${historyViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
+  document.getElementById('history-cal-btn').className =
+    `history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${historyViewMode === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
+
+  if (historyViewMode === 'calendar') {
+    renderCalendarView();
+  } else {
+    renderHistoryList();
+  }
+}
+
+function renderHistoryList() {
   const entries = getEntries();
   const container = document.getElementById('history-list');
   const empty = document.getElementById('history-empty');
@@ -586,6 +604,193 @@ function renderHistory() {
     container.insertBefore(section, empty);
   });
 }
+
+function renderCalendarView() {
+  const container = document.getElementById('history-list');
+  const empty = document.getElementById('history-empty');
+  empty.classList.add('hidden');
+
+  Array.from(container.children).forEach(child => {
+    if (child.id !== 'history-empty') child.remove();
+  });
+
+  const entries = getEntries();
+  const byDate = {};
+  entries.forEach(e => {
+    if (!byDate[e.date]) byDate[e.date] = [];
+    byDate[e.date].push(e);
+  });
+
+  const cal = document.createElement('div');
+  cal.id = 'calendar-view';
+
+  // Month navigation
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const nav = document.createElement('div');
+  nav.className = 'flex items-center justify-between mb-4 px-1';
+  nav.innerHTML = `
+    <button id="cal-prev" class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors text-xl font-light">‹</button>
+    <span class="text-base font-bold text-white">${calendarYear}年${monthNames[calendarMonth]}</span>
+    <button id="cal-next" class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors text-xl font-light">›</button>
+  `;
+  cal.appendChild(nav);
+
+  // Day-of-week headers
+  const dayLabels = ['日','月','火','水','木','金','土'];
+  const headerRow = document.createElement('div');
+  headerRow.className = 'grid grid-cols-7 mb-2';
+  dayLabels.forEach((d, i) => {
+    const cell = document.createElement('div');
+    cell.className = `text-center text-xs font-semibold py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'}`;
+    cell.textContent = d;
+    headerRow.appendChild(cell);
+  });
+  cal.appendChild(headerRow);
+
+  // Calendar grid
+  const grid = document.createElement('div');
+  grid.className = 'grid grid-cols-7 gap-y-1';
+
+  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const today = todayStr();
+
+  // Blank cells before first day
+  for (let i = 0; i < firstDay; i++) {
+    grid.appendChild(document.createElement('div'));
+  }
+
+  // Day cells
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dayEntries = byDate[dateStr] || [];
+    const isToday = dateStr === today;
+    const isSelected = dateStr === calendarSelectedDate;
+    const hasEntries = dayEntries.length > 0;
+    const isFuture = dateStr > today;
+
+    const cell = document.createElement('div');
+    cell.className = 'flex flex-col items-center py-1 cursor-pointer select-none';
+    cell.dataset.date = dateStr;
+
+    // Day number circle
+    const num = document.createElement('div');
+    let numCls = 'w-8 h-8 flex items-center justify-center rounded-full text-sm font-semibold transition-all';
+    if (isSelected && hasEntries) {
+      numCls += ' bg-indigo-600 text-white';
+    } else if (isToday) {
+      numCls += ' ring-2 ring-indigo-500 text-indigo-400 font-bold';
+    } else if (hasEntries) {
+      numCls += ' text-white hover:bg-gray-800';
+    } else if (isFuture) {
+      numCls += ' text-gray-700';
+    } else {
+      numCls += ' text-gray-500';
+    }
+    num.className = numCls;
+    num.textContent = d;
+    cell.appendChild(num);
+
+    // Muscle group dots
+    if (hasEntries) {
+      const muscles = [...new Set(dayEntries.map(e => e.muscleGroup).filter(Boolean))];
+      const dotsDiv = document.createElement('div');
+      dotsDiv.className = 'flex gap-0.5 mt-0.5 justify-center flex-wrap';
+      if (muscles.length > 0) {
+        muscles.slice(0, 3).forEach(m => {
+          const dot = document.createElement('div');
+          dot.className = 'w-1.5 h-1.5 rounded-full';
+          const c = MUSCLE_COLORS[m];
+          dot.style.backgroundColor = c ? c.activeBg : '#6366f1';
+          dotsDiv.appendChild(dot);
+        });
+      } else {
+        // No muscle group set — show generic indigo dot
+        const dot = document.createElement('div');
+        dot.className = 'w-1.5 h-1.5 rounded-full';
+        dot.style.backgroundColor = '#6366f1';
+        dotsDiv.appendChild(dot);
+      }
+      cell.appendChild(dotsDiv);
+    }
+
+    if (hasEntries) {
+      cell.addEventListener('click', () => {
+        calendarSelectedDate = calendarSelectedDate === dateStr ? null : dateStr;
+        renderCalendarView();
+      });
+    }
+
+    grid.appendChild(cell);
+  }
+
+  cal.appendChild(grid);
+
+  // Monthly summary strip
+  const monthDates = Object.keys(byDate).filter(d =>
+    d.startsWith(`${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-`)
+  );
+  const summary = document.createElement('div');
+  summary.className = 'mt-3 pt-3 border-t border-gray-800 flex items-center justify-between';
+  summary.innerHTML = `
+    <span class="text-xs text-gray-600">今月のトレーニング</span>
+    <span class="text-xs font-bold text-indigo-400">${monthDates.length}日</span>
+  `;
+  cal.appendChild(summary);
+
+  // Selected day entries
+  if (calendarSelectedDate) {
+    const daySection = document.createElement('div');
+    daySection.className = 'mt-4 space-y-3';
+
+    const selEntries = byDate[calendarSelectedDate] || [];
+    const gymTimes = getGymTimes();
+    const gt = gymTimes[calendarSelectedDate] || {};
+
+    const dayHeader = document.createElement('div');
+    dayHeader.className = 'flex items-center gap-2 mb-2 pb-2 border-b border-gray-800';
+    const muscles = [...new Set(selEntries.map(e => e.muscleGroup).filter(Boolean))];
+    dayHeader.innerHTML = `
+      <span class="text-sm font-bold text-white">${formatDate(calendarSelectedDate)}</span>
+      ${muscles.map(m => muscleTagHtml(m)).join('')}
+      <span class="text-xs text-gray-600 ml-auto">${selEntries.length}種目${gt.in ? ` • ${gt.in}〜${gt.out || '?'}` : ''}</span>
+    `;
+    daySection.appendChild(dayHeader);
+
+    selEntries.forEach(entry => {
+      const card = buildEntryCard(entry, true, () => renderHistory());
+      daySection.appendChild(card);
+    });
+
+    cal.appendChild(daySection);
+  }
+
+  container.insertBefore(cal, empty);
+
+  // Navigation button handlers
+  document.getElementById('cal-prev').addEventListener('click', () => {
+    calendarMonth--;
+    if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+    calendarSelectedDate = null;
+    renderCalendarView();
+  });
+  document.getElementById('cal-next').addEventListener('click', () => {
+    calendarMonth++;
+    if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+    calendarSelectedDate = null;
+    renderCalendarView();
+  });
+}
+
+// History view toggle
+document.getElementById('history-list-btn').addEventListener('click', () => {
+  historyViewMode = 'list';
+  renderHistory();
+});
+document.getElementById('history-cal-btn').addEventListener('click', () => {
+  historyViewMode = 'calendar';
+  renderHistory();
+});
 
 // ============================================================
 // GRAPH PAGE
