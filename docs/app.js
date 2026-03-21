@@ -21,16 +21,16 @@ function save(key, value) {
 }
 
 function getEntries() { return load(KEYS.entries, []); }
-function saveEntries(e) { save(KEYS.entries, e); }
+function saveEntries(e)   { save(KEYS.entries, e);   scheduleFsSync(); }
 
 function getExercises() { return load(KEYS.exercises, []); }
-function saveExercises(e) { save(KEYS.exercises, e); }
+function saveExercises(e) { save(KEYS.exercises, e); scheduleFsSync(); }
 
 function getDefaultUnit() { return load(KEYS.defaultUnit, 'kg'); }
-function saveDefaultUnit(u) { save(KEYS.defaultUnit, u); }
+function saveDefaultUnit(u) { save(KEYS.defaultUnit, u); scheduleFsSync(); }
 
 function getGymTimes() { return load(KEYS.gymTime, {}); }
-function saveGymTimes(t) { save(KEYS.gymTime, t); }
+function saveGymTimes(t) { save(KEYS.gymTime, t); scheduleFsSync(); }
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -950,6 +950,166 @@ document.getElementById('import-file').addEventListener('change', (e) => {
 });
 
 // ============================================================
+// FIREBASE — AUTH & FIRESTORE SYNC
+// ============================================================
+
+let fsDb   = null;
+let fsAuth = null;
+let fsUser = null;
+let fsSyncTimer    = null;
+let fsUnsubscribe  = null;
+
+// Called by every save* function — no-op until Firebase is ready
+function scheduleFsSync() {
+  if (!fsUser || !fsDb) return;
+  clearTimeout(fsSyncTimer);
+  fsSyncTimer = setTimeout(pushToFirestore, 800);
+}
+
+function fsUserRef(doc) {
+  return fsDb.collection('users').doc(fsUser.uid).collection('data').doc(doc);
+}
+
+async function pullFromFirestore() {
+  try {
+    const [eSnap, xSnap, sSnap] = await Promise.all([
+      fsUserRef('entries').get(),
+      fsUserRef('exercises').get(),
+      fsUserRef('settings').get(),
+    ]);
+    if (eSnap.exists && eSnap.data().items) save(KEYS.entries,  eSnap.data().items);
+    if (xSnap.exists && xSnap.data().items) save(KEYS.exercises, xSnap.data().items);
+    if (sSnap.exists) {
+      const s = sSnap.data();
+      if (s.defaultUnit) save(KEYS.defaultUnit, s.defaultUnit);
+      if (s.gymTimes)    save(KEYS.gymTime,     s.gymTimes);
+    }
+  } catch(e) { console.warn('Firestore pull failed:', e); }
+}
+
+async function pushToFirestore() {
+  if (!fsUser || !fsDb) return;
+  showSyncIndicator(true);
+  try {
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    await Promise.all([
+      fsUserRef('entries').set({ items: getEntries(), updatedAt: ts }),
+      fsUserRef('exercises').set({ items: getExercises(), updatedAt: ts }),
+      fsUserRef('settings').set({ defaultUnit: getDefaultUnit(), gymTimes: getGymTimes(), updatedAt: ts }),
+    ]);
+  } catch(e) { console.warn('Firestore push failed:', e); }
+  showSyncIndicator(false);
+}
+
+function setupRealtimeListener() {
+  if (fsUnsubscribe) fsUnsubscribe();
+  fsUnsubscribe = fsUserRef('entries').onSnapshot((snap) => {
+    // Only process updates from the server (not our own pending writes)
+    if (snap.metadata.hasPendingWrites || !snap.exists) return;
+    const items = snap.data().items;
+    if (!items) return;
+    save(KEYS.entries, items);
+    if (currentTab === 'today')   renderToday();
+    if (currentTab === 'history') renderHistory();
+  });
+}
+
+function showSyncIndicator(on) {
+  document.getElementById('sync-indicator').classList.toggle('hidden', !on);
+}
+
+function updateMenuUserSection(user) {
+  const userSection  = document.getElementById('menu-user-section');
+  const loginBtn     = document.getElementById('menu-login-btn');
+  const menuPhoto    = document.getElementById('menu-user-photo');
+  const menuName     = document.getElementById('menu-user-name');
+  const menuEmail    = document.getElementById('menu-user-email');
+  const headerPhoto  = document.getElementById('user-photo');
+
+  if (user) {
+    userSection.classList.remove('hidden');
+    loginBtn.classList.add('hidden');
+    if (user.photoURL) {
+      menuPhoto.src   = user.photoURL;
+      headerPhoto.src = user.photoURL;
+      headerPhoto.classList.remove('hidden');
+    }
+    menuName.textContent  = user.displayName || '';
+    menuEmail.textContent = user.email || '';
+  } else {
+    userSection.classList.add('hidden');
+    loginBtn.classList.remove('hidden');
+    headerPhoto.classList.add('hidden');
+  }
+}
+
+function initFirebase() {
+  try {
+    fsDb   = firebase.firestore();
+    fsAuth = firebase.auth();
+  } catch(e) {
+    // Firebase not configured — run in local-only mode
+    console.info('Firebase not configured, running in local-only mode.');
+    return;
+  }
+
+  // Handle redirect result (iOS Safari uses redirect instead of popup)
+  fsAuth.getRedirectResult().catch(() => {});
+
+  fsAuth.onAuthStateChanged(async (user) => {
+    if (user) {
+      fsUser = user;
+      updateMenuUserSection(user);
+      document.getElementById('login-overlay').classList.add('hidden');
+      await pullFromFirestore();
+      setupRealtimeListener();
+      currentUnit = getDefaultUnit();
+      renderToday();
+    } else {
+      fsUser = null;
+      if (fsUnsubscribe) { fsUnsubscribe(); fsUnsubscribe = null; }
+      updateMenuUserSection(null);
+      // Show login overlay only if Firebase is properly configured
+      if (!firebaseConfig.apiKey.startsWith('REPLACE_')) {
+        document.getElementById('login-overlay').classList.remove('hidden');
+      }
+    }
+  });
+}
+
+// Google sign-in
+document.getElementById('google-signin-btn')?.addEventListener('click', async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await fsAuth.signInWithPopup(provider);
+  } catch(e) {
+    // Popup blocked (common on iOS) → fall back to redirect
+    fsAuth.signInWithRedirect(provider);
+  }
+});
+
+document.getElementById('menu-login-btn')?.addEventListener('click', async () => {
+  document.getElementById('backup-modal').classList.add('hidden');
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await fsAuth.signInWithPopup(provider);
+  } catch(e) {
+    fsAuth.signInWithRedirect(provider);
+  }
+});
+
+document.getElementById('signout-btn')?.addEventListener('click', () => {
+  if (confirm('ログアウトしますか？\nデータはこの端末に残ります。')) {
+    fsAuth.signOut();
+    document.getElementById('backup-modal').classList.add('hidden');
+  }
+});
+
+document.getElementById('skip-login-btn')?.addEventListener('click', () => {
+  document.getElementById('login-overlay').classList.add('hidden');
+});
+
+// ============================================================
 // SERVICE WORKER
 // ============================================================
 
@@ -965,5 +1125,6 @@ if ('serviceWorker' in navigator) {
 
 (function init() {
   currentUnit = getDefaultUnit();
-  switchTab('today');
+  switchTab('today');  // Show app immediately with local data
+  initFirebase();      // Then connect Firebase in background
 })();

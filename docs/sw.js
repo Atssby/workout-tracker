@@ -1,8 +1,9 @@
-const CACHE_NAME = 'workout-tracker-v3';
+const CACHE_NAME = 'workout-tracker-v4';
 const ASSETS = [
   './',
   './index.html',
   './app.js',
+  './firebase-config.js',
   './manifest.json'
 ];
 
