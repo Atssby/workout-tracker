@@ -226,30 +226,34 @@
         <h2 class="text-base font-semibold text-gray-300">本日のトレーニング</h2>
         <button id="today-add-btn" class="text-indigo-400 text-sm font-medium hover:text-indigo-300 transition-colors">＋ 部位なしで追加</button>
       </div>
-      <!-- 部位クイック選択（タップで提案付きAddへ） -->
-      <div class="flex flex-wrap gap-2 mb-4">
-        <button data-today-muscle="胸"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#dc262622;border-color:#dc2626;color:#dc2626;">＋ 胸</button>
-        <button data-today-muscle="背中" class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#2563eb22;border-color:#2563eb;color:#2563eb;">＋ 背中</button>
-        <button data-today-muscle="脚"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#16a34a22;border-color:#16a34a;color:#16a34a;">＋ 脚</button>
-        <button data-today-muscle="肩"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#ca8a0422;border-color:#ca8a04;color:#ca8a04;">＋ 肩</button>
-        <button data-today-muscle="腕"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#9333ea22;border-color:#9333ea;color:#9333ea;">＋ 腕</button>
-        <button data-today-muscle="腹"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#0d948822;border-color:#0d9488;color:#0d9488;">＋ 腹</button>
+      <!-- 部位選択ボタン -->
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button data-today-muscle="胸"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#dc262622;border-color:#dc2626;color:#dc2626;">胸</button>
+        <button data-today-muscle="背中" class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#2563eb22;border-color:#2563eb;color:#2563eb;">背中</button>
+        <button data-today-muscle="脚"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#16a34a22;border-color:#16a34a;color:#16a34a;">脚</button>
+        <button data-today-muscle="肩"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#ca8a0422;border-color:#ca8a04;color:#ca8a04;">肩</button>
+        <button data-today-muscle="腕"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#9333ea22;border-color:#9333ea;color:#9333ea;">腕</button>
+        <button data-today-muscle="腹"  class="today-muscle-btn flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors" style="background-color:#0d948822;border-color:#0d9488;color:#0d9488;">腹</button>
       </div>
 
-      <!-- 今日の記録サマリー（エントリ数のみ表示、タップで履歴へ） -->
-      <div id="today-summary" class="hidden">
+      <!-- 今日の記録サマリー（保存済み件数、タップで履歴へ） -->
+      <div id="today-summary" class="hidden mb-3">
         <button id="today-summary-btn" class="w-full flex items-center justify-between bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-left transition-colors active:bg-gray-800">
           <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-400">今日の記録</span>
+            <span class="text-sm text-gray-400">保存済み</span>
             <span id="today-summary-count" class="text-sm font-bold text-indigo-400"></span>
           </div>
           <span class="text-xs text-gray-600">履歴で確認 →</span>
         </button>
       </div>
+
+      <!-- 部位選択後に表示する種目カード -->
+      <div id="today-suggestion-cards" class="space-y-3"></div>
+
+      <!-- 空状態（部位未選択かつ記録なし） -->
       <div id="today-empty" class="text-center py-12 text-gray-600">
         <div class="text-4xl mb-3">🏋️</div>
-        <div class="text-sm">まだ記録がありません</div>
-        <div class="text-xs mt-1 text-gray-700">上のボタンから部位を選んで追加</div>
+        <div class="text-sm">部位を選んでトレーニングを始めよう</div>
       </div>
     </div>
 

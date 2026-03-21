@@ -97,6 +97,7 @@ let calendarMonth = new Date().getMonth(); // 0-indexed
 let calendarSelectedDate = null;
 let historyMuscleFilter   = '';   // '' = すべて
 let historyExerciseFilter = '';   // exercise id, '' = すべて
+let todaySelectedMuscle   = '';   // 今日ページで選択中の部位
 
 // ============================================================
 // TAB NAVIGATION
@@ -136,7 +137,218 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // TODAY PAGE
 // ============================================================
 
-// 部位を選択した状態でAddページへ遷移（提案も自動ロード）
+function renderToday() {
+  const today = todayStr();
+  const gymTimes = getGymTimes();
+  const todayTime = gymTimes[today] || {};
+
+  document.getElementById('display-gym-in').textContent = todayTime.in || '--:--';
+  document.getElementById('display-gym-out').textContent = todayTime.out || '--:--';
+  if (todayTime.in) document.getElementById('gym-in-input').value = todayTime.in;
+  if (todayTime.out) document.getElementById('gym-out-input').value = todayTime.out;
+
+  renderTodaySummary();
+  renderTodayMuscleBtns();
+  // 部位が選択済みなら維持（タブ切り替え後も保持）
+  if (todaySelectedMuscle) renderTodaySuggestions(todaySelectedMuscle);
+}
+
+// 保存済み件数サマリーバーを更新
+function renderTodaySummary() {
+  const today = todayStr();
+  const entries = getEntries().filter(e => e.date === today);
+  const summary = document.getElementById('today-summary');
+  const empty   = document.getElementById('today-empty');
+
+  if (entries.length === 0 && !todaySelectedMuscle) {
+    summary.classList.add('hidden');
+    empty.classList.remove('hidden');
+  } else {
+    empty.classList.add('hidden');
+    if (entries.length > 0) {
+      summary.classList.remove('hidden');
+      const muscleCounts = {};
+      entries.forEach(e => {
+        const m = e.muscleGroup || '未設定';
+        muscleCounts[m] = (muscleCounts[m] || 0) + 1;
+      });
+      const parts = Object.entries(muscleCounts).map(([m, n]) => `${m} ${n}種目`).join('・');
+      document.getElementById('today-summary-count').textContent = parts;
+    } else {
+      summary.classList.add('hidden');
+    }
+  }
+}
+
+// 部位ボタンの選択状態を視覚更新
+function renderTodayMuscleBtns() {
+  document.querySelectorAll('.today-muscle-btn').forEach(btn => {
+    const m = btn.dataset.todayMuscle;
+    const c = MUSCLE_COLORS[m];
+    if (m === todaySelectedMuscle) {
+      btn.style.cssText = `background-color:${c.activeBg};border-color:${c.activeBg};color:#fff;`;
+    } else {
+      btn.style.cssText = `background-color:${c.activeBg}22;border-color:${c.border};color:${c.activeBg};`;
+    }
+  });
+}
+
+// 部位の種目提案カードを描画
+function renderTodaySuggestions(muscleGroup) {
+  const container = document.getElementById('today-suggestion-cards');
+  container.innerHTML = '';
+  if (!muscleGroup) return;
+
+  const suggestions = getSuggestionsForMuscle(muscleGroup);
+  if (suggestions.length === 0) {
+    container.innerHTML = `<div class="text-center py-8 text-gray-600 text-sm">この部位の記録がまだありません</div>`;
+    return;
+  }
+
+  suggestions.forEach(entry => {
+    const unit = entry.sets[0]?.unit || 'kg';
+    const card = document.createElement('div');
+    card.className = 'bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden';
+    card.dataset.exerciseId   = entry.exerciseId || '';
+    card.dataset.exerciseName = entry.exerciseName;
+    card.dataset.unit         = unit;
+
+    const setsHtml = entry.sets.map((s, i) => buildSetRowHtml(i, s.weight, unit, s.reps)).join('');
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between px-4 pt-4 pb-3">
+        <span class="font-bold text-white text-base">${entry.exerciseName}</span>
+        <button class="save-card-btn px-4 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl transition-colors active:bg-indigo-700">保存</button>
+      </div>
+      <div class="sets-list px-4 pb-2 space-y-1">${setsHtml}</div>
+      <div class="px-4 pb-3 flex items-center gap-4">
+        <button class="add-set-btn text-xs text-indigo-400 font-medium">＋ セット追加</button>
+      </div>`;
+
+    container.appendChild(card);
+
+    card.querySelector('.save-card-btn').addEventListener('click', () => saveTodayCard(card, muscleGroup));
+    card.querySelector('.add-set-btn').addEventListener('click', () => addSetToTodayCard(card));
+    card.querySelectorAll('.remove-set-btn').forEach(btn =>
+      btn.addEventListener('click', () => { btn.closest('.set-row').remove(); renumberTodaySets(card); })
+    );
+  });
+}
+
+function buildSetRowHtml(idx, weight, unit, reps) {
+  return `
+    <div class="set-row flex items-center gap-2 py-1" data-idx="${idx}">
+      <span class="set-label text-xs text-gray-500 w-12 flex-shrink-0">セット${idx + 1}</span>
+      <input type="number" inputmode="decimal" value="${weight}" step="0.5"
+        class="set-weight w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500">
+      <span class="text-xs text-gray-400">${unit} ×</span>
+      <input type="number" inputmode="numeric" value="${reps}"
+        class="set-reps w-14 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500">
+      <span class="text-xs text-gray-400">回</span>
+      <button class="remove-set-btn text-gray-600 text-lg leading-none ml-auto px-1">×</button>
+    </div>`;
+}
+
+function addSetToTodayCard(card) {
+  const list = card.querySelector('.sets-list');
+  const rows = list.querySelectorAll('.set-row');
+  const lastRow = rows[rows.length - 1];
+  const lastWeight = lastRow ? lastRow.querySelector('.set-weight').value : '';
+  const lastReps   = lastRow ? lastRow.querySelector('.set-reps').value : '';
+  const unit = card.dataset.unit || 'kg';
+  const idx  = rows.length;
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = buildSetRowHtml(idx, lastWeight, unit, lastReps);
+  const newRow = tmp.firstElementChild;
+  newRow.querySelector('.remove-set-btn').addEventListener('click', () => {
+    newRow.remove(); renumberTodaySets(card);
+  });
+  list.appendChild(newRow);
+}
+
+function renumberTodaySets(card) {
+  card.querySelectorAll('.set-row').forEach((row, i) => {
+    row.dataset.idx = i;
+    row.querySelector('.set-label').textContent = `セット${i + 1}`;
+  });
+}
+
+function saveTodayCard(card, muscleGroup) {
+  const exerciseName = card.dataset.exerciseName;
+  const exerciseId   = card.dataset.exerciseId;
+  const unit         = card.dataset.unit || 'kg';
+
+  const sets = [];
+  card.querySelectorAll('.set-row').forEach(row => {
+    const w = parseFloat(row.querySelector('.set-weight').value);
+    const r = parseInt(row.querySelector('.set-reps').value);
+    if (!isNaN(w) && !isNaN(r) && w > 0 && r > 0) sets.push({ weight: w, unit, reps: r });
+  });
+  if (sets.length === 0) { showToast('セットを入力してください'); return; }
+
+  const today = todayStr();
+  const gymTimes = getGymTimes();
+  const todayTime = gymTimes[today] || {};
+
+  // 種目マスタを確認・更新
+  const exercises = getExercises();
+  let ex = exercises.find(e => e.id === exerciseId) || exercises.find(e => e.name === exerciseName);
+  if (!ex) {
+    ex = { id: genId(), name: exerciseName, muscleGroups: [muscleGroup] };
+    exercises.push(ex);
+    saveExercises(exercises);
+  }
+
+  const entry = {
+    id: genId(),
+    date: today,
+    exerciseId: ex.id,
+    exerciseName,
+    muscleGroup,
+    sets,
+    memo: '',
+    gymIn: todayTime.in || '',
+    gymOut: todayTime.out || '',
+    createdAt: new Date().toISOString(),
+  };
+  const entries = getEntries();
+  entries.push(entry);
+  saveEntries(entries);
+
+  // カードを保存済み状態に
+  const saveBtn = card.querySelector('.save-card-btn');
+  saveBtn.textContent = '✓ 保存済み';
+  saveBtn.classList.replace('bg-indigo-600', 'bg-green-700');
+  saveBtn.disabled = true;
+  card.querySelectorAll('input').forEach(inp => inp.disabled = true);
+  card.querySelectorAll('.remove-set-btn, .add-set-btn').forEach(b => b.classList.add('hidden'));
+  card.classList.add('opacity-60');
+
+  renderTodaySummary();
+  showToast(`${exerciseName} を保存しました`);
+}
+
+document.getElementById('today-summary-btn').addEventListener('click', () => switchTab('history'));
+
+// 部位ボタン クリック
+document.querySelectorAll('.today-muscle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const m = btn.dataset.todayMuscle;
+    todaySelectedMuscle = todaySelectedMuscle === m ? '' : m; // 同じボタンで解除
+    renderTodayMuscleBtns();
+    renderTodaySuggestions(todaySelectedMuscle);
+    renderTodaySummary();
+  });
+});
+
+// 「部位なしで追加」→ Add タブへ
+document.getElementById('today-add-btn').addEventListener('click', () => {
+  initAddForm();
+  switchTab('add');
+});
+
+// 部位を選択した状態でAddページへ遷移（記録追加タブから使用）
 function switchToAddWithMuscle(muscleGroup) {
   initAddForm();
   if (muscleGroup) {
@@ -146,42 +358,6 @@ function switchToAddWithMuscle(muscleGroup) {
   }
   switchTab('add');
 }
-
-function renderToday() {
-  const today = todayStr();
-  const gymTimes = getGymTimes();
-  const todayTime = gymTimes[today] || {};
-
-  document.getElementById('display-gym-in').textContent = todayTime.in || '--:--';
-  document.getElementById('display-gym-out').textContent = todayTime.out || '--:--';
-
-  if (todayTime.in) document.getElementById('gym-in-input').value = todayTime.in;
-  if (todayTime.out) document.getElementById('gym-out-input').value = todayTime.out;
-
-  const entries = getEntries().filter(e => e.date === today);
-  const summary = document.getElementById('today-summary');
-  const empty = document.getElementById('today-empty');
-
-  if (entries.length === 0) {
-    summary.classList.add('hidden');
-    empty.classList.remove('hidden');
-  } else {
-    empty.classList.add('hidden');
-    summary.classList.remove('hidden');
-    // 部位ごとの件数をまとめて表示
-    const muscleCounts = {};
-    entries.forEach(e => {
-      const m = e.muscleGroup || '未設定';
-      muscleCounts[m] = (muscleCounts[m] || 0) + 1;
-    });
-    const parts = Object.entries(muscleCounts).map(([m, n]) => `${m} ${n}種目`).join('・');
-    document.getElementById('today-summary-count').textContent = parts;
-  }
-}
-
-document.getElementById('today-summary-btn').addEventListener('click', () => {
-  switchTab('history');
-});
 
 function buildEntryCard(entry, showActions, onDelete) {
   const card = document.createElement('div');
@@ -260,15 +436,6 @@ document.getElementById('save-gym-time-btn').addEventListener('click', () => {
   saveGymTimes(gymTimes);
   document.getElementById('gym-time-form').classList.add('hidden');
   renderToday();
-});
-
-document.getElementById('today-add-btn').addEventListener('click', () => {
-  switchToAddWithMuscle(''); // 部位なしで通常追加
-});
-
-// 部位クイック選択ボタン（静的HTML）のクリックハンドラ
-document.querySelectorAll('.today-muscle-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchToAddWithMuscle(btn.dataset.todayMuscle));
 });
 
 // ============================================================
