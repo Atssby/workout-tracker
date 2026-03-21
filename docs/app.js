@@ -1664,6 +1664,15 @@ document.getElementById('backup-btn').addEventListener('click', () => {
 document.getElementById('backup-modal-close').addEventListener('click', () => {
   document.getElementById('backup-modal').classList.add('hidden');
 });
+
+document.getElementById('dedup-btn').addEventListener('click', () => {
+  const before = getExercises().length;
+  deduplicateExercises();
+  const after = getExercises().length;
+  const removed = before - after;
+  showToast(removed > 0 ? `${removed}件の重複種目を統合しました` : '重複は見つかりませんでした');
+  document.getElementById('backup-modal').classList.add('hidden');
+});
 document.getElementById('backup-modal').addEventListener('click', (e) => {
   if (e.target === document.getElementById('backup-modal')) {
     document.getElementById('backup-modal').classList.add('hidden');
@@ -1711,6 +1720,7 @@ document.getElementById('import-file').addEventListener('change', (e) => {
       // Merge gym times
       const mergedTimes = { ...data.gymTimes, ...getGymTimes() };
       saveGymTimes(mergedTimes);
+      deduplicateExercises(); // インポートで重複が生じた場合も除去
       showToast(`${data.entries.length}件をインポートしました！`);
       document.getElementById('backup-modal').classList.add('hidden');
       switchTab('today');
@@ -1871,6 +1881,7 @@ function initFirebase() {
       updateMenuUserSection(user);
       document.getElementById('login-overlay').classList.add('hidden');
       await pullFromFirestore();
+      deduplicateExercises(); // Firestoreデータに重複がある場合も除去
       setupRealtimeListener();
       currentUnit = getDefaultUnit();
       renderToday();
