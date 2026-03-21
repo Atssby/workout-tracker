@@ -540,6 +540,7 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
   // Reset form
   sets = [{ weight: '', reps: '' }];
   exerciseInput.value = '';
+  document.getElementById('add-memo').value = '';
   renderSets();
 
   // Show success and switch to today if date is today
