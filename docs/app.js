@@ -1546,6 +1546,13 @@ function openEditModal(id) {
 
   document.getElementById('edit-exercise-display').textContent = entry.exerciseName;
   document.getElementById('edit-memo').value = entry.memo || '';
+
+  // ジム時間をその日の gymTimes から読み込む
+  const gymTimes = getGymTimes();
+  const gt = gymTimes[entry.date] || {};
+  document.getElementById('edit-gym-in').value  = gt.in  || entry.gymIn  || '';
+  document.getElementById('edit-gym-out').value = gt.out || entry.gymOut || '';
+
   updateEditUnitButtons();
   updateMuscleBtns('.edit-muscle-btn', editMuscleGroup);
   renderEditSets();
@@ -1618,10 +1625,22 @@ document.getElementById('edit-save-btn').addEventListener('click', () => {
     .filter(s => s.weight > 0 && s.reps > 0);
   if (validSets.length === 0) { alert('有効なセットを1つ以上入力してください'); return; }
 
-  const editMemo = document.getElementById('edit-memo').value.trim();
+  const editMemo  = document.getElementById('edit-memo').value.trim();
+  const editGymIn  = document.getElementById('edit-gym-in').value;
+  const editGymOut = document.getElementById('edit-gym-out').value;
+
+  // 編集対象エントリの日付を取得してジム時間を保存
+  const targetEntry = getEntries().find(e => e.id === editingEntryId);
+  if (targetEntry) {
+    const gymTimes = getGymTimes();
+    gymTimes[targetEntry.date] = { in: editGymIn, out: editGymOut };
+    saveGymTimes(gymTimes);
+  }
+
   const entries = getEntries().map(e => {
     if (e.id !== editingEntryId) return e;
-    return { ...e, sets: validSets, muscleGroup: editMuscleGroup, memo: editMemo };
+    return { ...e, sets: validSets, muscleGroup: editMuscleGroup, memo: editMemo,
+             gymIn: editGymIn, gymOut: editGymOut };
   });
   saveEntries(entries);
   closeEditModal();
