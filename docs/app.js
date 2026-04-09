@@ -37,7 +37,8 @@ function genId() {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function nowTime() {
@@ -1725,7 +1726,7 @@ document.getElementById('export-btn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const dateStr = todayStr().replace(/-/g, '');
   a.href = url;
   a.download = `workout-backup-${dateStr}.json`;
   a.click();
