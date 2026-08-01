@@ -1,4 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="100" fill="#6366f1"/>
-  <text x="256" y="320" font-family="Arial" font-size="280" text-anchor="middle" fill="white">💪</text>
+<!-- アイコンのデザイン原本。PNG は tools/make_icons.py で生成する（同じ座標） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g fill="#ffffff">
+    <rect x="187" y="239" width="138" height="34"  rx="14"/>
+    <rect x="141" y="182" width="46"  height="148" rx="16"/>
+    <rect x="325" y="182" width="46"  height="148" rx="16"/>
+    <rect x="104" y="208" width="37"  height="97"  rx="14"/>
+    <rect x="371" y="208" width="37"  height="97"  rx="14"/>
+  </g>
 </svg>

@@ -109,6 +109,7 @@ const tabTitles = {
   add: '記録追加',
   history: '履歴',
   graph: 'グラフ',
+  help: '使い方',
 };
 
 function switchTab(tab) {
@@ -118,6 +119,7 @@ function switchTab(tab) {
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + tab).classList.add('active');
+  document.getElementById('content').scrollTop = 0;  // ページ間でスクロール位置を持ち越さない
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
     const active = btn.dataset.tab === tab;

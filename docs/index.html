@@ -415,6 +415,137 @@
         <div id="graph-stats" class="hidden mt-4 grid grid-cols-3 gap-2"></div>
       </div>
     </div>
+
+    <!-- Help Page -->
+    <div id="page-help" class="page p-4 pb-24">
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-5 mb-4">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <svg class="w-7 h-7 text-white" viewBox="0 0 512 512" fill="currentColor">
+              <rect x="187" y="239" width="138" height="34" rx="14"/>
+              <rect x="141" y="182" width="46" height="148" rx="16"/>
+              <rect x="325" y="182" width="46" height="148" rx="16"/>
+              <rect x="104" y="208" width="37" height="97" rx="14"/>
+              <rect x="371" y="208" width="37" height="97" rx="14"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-white">Workout Tracker</div>
+            <div class="text-sm text-gray-500">筋トレの記録・振り返り用アプリ</div>
+          </div>
+        </div>
+        <p class="text-[15px] text-gray-300 leading-relaxed mt-3">
+          ジムでの<strong class="text-white">記録は「今日」タブだけで完結</strong>します。前回と同じメニューが自動で出てくるので、重量と回数を直して保存するだけです。
+        </p>
+      </div>
+
+      <!-- 基本の流れ -->
+      <h2 class="text-base font-bold text-gray-300 mb-2 px-1">基本の流れ（ジムでの3ステップ）</h2>
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-5 space-y-4">
+        <div class="flex gap-3">
+          <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0">1</div>
+          <div class="text-[15px] text-gray-300 leading-relaxed pt-1">
+            <strong class="text-white">「今日」タブで部位を選ぶ</strong><br>
+            胸・背中・脚・肩・腕・腹のボタンをタップします。
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0">2</div>
+          <div class="text-[15px] text-gray-300 leading-relaxed pt-1">
+            <strong class="text-white">前回のメニューが出てくる</strong><br>
+            その部位で過去5回にやった種目が、前回の重量・回数入りで並びます。
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center flex-shrink-0">3</div>
+          <div class="text-[15px] text-gray-300 leading-relaxed pt-1">
+            <strong class="text-white">数値を直して「保存」</strong><br>
+            種目ごとに保存します。セットが足りなければ「＋ セット追加」で増やせます。
+          </div>
+        </div>
+      </div>
+
+      <!-- 数値の入力 -->
+      <h2 class="text-base font-bold text-gray-300 mb-2 px-1">数値の入力（テンキー）</h2>
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-5">
+        <p class="text-[15px] text-gray-300 leading-relaxed mb-3">
+          重量・回数の欄をタップすると、このアプリ専用のテンキーが下から出ます（iPhone標準のキーボードは出ません）。
+        </p>
+        <ul class="text-[15px] text-gray-300 leading-relaxed space-y-2">
+          <li class="flex gap-2"><span class="text-indigo-400 flex-shrink-0">・</span><span><strong class="text-white">⌫（右上）</strong>で1文字ずつ削除。押し間違い防止のため右下ではなく右上にあります。</span></li>
+          <li class="flex gap-2"><span class="text-indigo-400 flex-shrink-0">・</span><span><strong class="text-white">小数点は右下</strong>。62.5 のような重量もそのまま入力できます（回数欄では使えません）。</span></li>
+          <li class="flex gap-2"><span class="text-indigo-400 flex-shrink-0">・</span><span>開いた直後は今の値がハイライトされ、<strong class="text-white">最初に数字を押すと丸ごと打ち直し</strong>になります。1文字だけ消したいときは先に ⌫ を押してください。</span></li>
+          <li class="flex gap-2"><span class="text-indigo-400 flex-shrink-0">・</span><span><strong class="text-white">完了</strong>を押すか、キーパッド以外の場所をタップすると閉じます。</span></li>
+        </ul>
+      </div>
+
+      <!-- タブの説明 -->
+      <h2 class="text-base font-bold text-gray-300 mb-2 px-1">各タブでできること</h2>
+      <div class="space-y-3 mb-5">
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 flex gap-3">
+          <svg class="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <div>
+            <div class="font-bold text-white mb-1">今日</div>
+            <p class="text-[15px] text-gray-400 leading-relaxed">その日のトレーニングを記録します。上のカードでジムのイン・アウト時刻も記録でき、その日の全記録に反映されます。保存済みの件数は「保存済み」バーに出ます。</p>
+          </div>
+        </div>
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 flex gap-3">
+          <svg class="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <div>
+            <div class="font-bold text-white mb-1">記録追加</div>
+            <p class="text-[15px] text-gray-400 leading-relaxed">日付を指定して記録します。過去の日を後から入力するとき、新しい種目を登録するとき、メモを残したいときに使います。種目名は入力すると候補が出ます。</p>
+          </div>
+        </div>
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 flex gap-3">
+          <svg class="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v10l4 2"/><circle cx="12" cy="12" r="10"/>
+          </svg>
+          <div>
+            <div class="font-bold text-white mb-1">履歴</div>
+            <p class="text-[15px] text-gray-400 leading-relaxed">過去の記録をリスト／カレンダーで見ます。日付をタップで開き、<strong class="text-gray-200">編集</strong>で重量・回数・部位・ジム時間・メモを直せます。上の丸ボタンで部位を絞り込めます。</p>
+          </div>
+        </div>
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 flex gap-3">
+          <svg class="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          <div>
+            <div class="font-bold text-white mb-1">グラフ</div>
+            <p class="text-[15px] text-gray-400 leading-relaxed">種目ごとの推移を見ます。<strong class="text-gray-200">最大重量</strong>（その日の一番重いセット）と<strong class="text-gray-200">総ボリューム</strong>（重量×回数の合計）を切り替えられます。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- メニュー・データ -->
+      <h2 class="text-base font-bold text-gray-300 mb-2 px-1">データとバックアップ</h2>
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-5">
+        <p class="text-[15px] text-gray-300 leading-relaxed mb-3">
+          記録はまず<strong class="text-white">この端末の中</strong>に保存されます。Googleでログインすると自動でクラウドにも保存され、iPhoneとMacの間で同期されます。
+        </p>
+        <p class="text-[15px] text-gray-400 leading-relaxed">
+          右上の<strong class="text-gray-200">メニュー</strong>からできること：
+        </p>
+        <ul class="text-[15px] text-gray-400 leading-relaxed mt-2 space-y-1.5">
+          <li>・JSONでエクスポート（バックアップの保存）</li>
+          <li>・JSONをインポート（バックアップからの復元）</li>
+          <li>・種目の重複を除去（同じ種目が二重に出るときの掃除）</li>
+          <li>・全データを削除（取り消せません。2回確認されます）</li>
+        </ul>
+      </div>
+
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+        <div class="font-bold text-white mb-2">ちょっとしたコツ</div>
+        <ul class="text-[15px] text-gray-400 leading-relaxed space-y-2">
+          <li>・右上の<strong class="text-gray-200">☀︎／🌙</strong>で、明るいテーマと暗いテーマを切り替えられます。</li>
+          <li>・部位を選ばずに種目だけ足したいときは「今日」タブの<strong class="text-gray-200">＋ 部位なしで追加</strong>から。</li>
+          <li>・ホーム画面に追加すると、アプリのように全画面で使えます（Safariの共有 →「ホーム画面に追加」）。</li>
+        </ul>
+      </div>
+    </div>
   </div>
 
   <!-- Edit Entry Modal -->
@@ -536,6 +667,14 @@
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
       <span class="text-sm font-medium">グラフ</span>
+    </button>
+    <button class="tab-btn flex-1 flex flex-col items-center py-3 gap-1" data-tab="help">
+      <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" stroke-linecap="round"/>
+        <line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round"/>
+      </svg>
+      <span class="text-sm font-medium">使い方</span>
     </button>
   </div>
 </div>
