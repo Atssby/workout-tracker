@@ -10,7 +10,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 class PWAHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=os.path.join(os.path.dirname(__file__), 'public'), **kwargs)
+        super().__init__(*args, directory=os.path.join(os.path.dirname(__file__), 'docs'), **kwargs)
 
     def end_headers(self):
         # Required for PWA service worker scope

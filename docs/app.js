@@ -112,6 +112,7 @@ const tabTitles = {
 };
 
 function switchTab(tab) {
+  closeNumpad();
   currentTab = tab;
   document.getElementById('page-title').textContent = tabTitles[tab];
 
@@ -196,6 +197,7 @@ function renderTodayMuscleBtns() {
 
 // 部位の種目提案カードを描画
 function renderTodaySuggestions(muscleGroup) {
+  closeNumpad();
   const container = document.getElementById('today-suggestion-cards');
   container.innerHTML = '';
   if (!muscleGroup) return;
@@ -219,11 +221,11 @@ function renderTodaySuggestions(muscleGroup) {
     card.innerHTML = `
       <div class="flex items-center justify-between px-4 pt-4 pb-3">
         <span class="font-bold text-white text-base">${entry.exerciseName}</span>
-        <button class="save-card-btn px-4 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl transition-colors active:bg-indigo-700">保存</button>
+        <button class="save-card-btn px-6 py-3 bg-indigo-600 text-white text-base font-bold rounded-xl transition-colors active:bg-indigo-700">保存</button>
       </div>
       <div class="sets-list px-4 pb-2 space-y-1">${setsHtml}</div>
       <div class="px-4 pb-3 flex items-center gap-4">
-        <button class="add-set-btn text-xs text-indigo-400 font-medium">＋ セット追加</button>
+        <button class="add-set-btn text-sm text-indigo-400 font-semibold px-3 py-2 -ml-3 rounded-lg">＋ セット追加</button>
       </div>`;
 
     container.appendChild(card);
@@ -231,22 +233,24 @@ function renderTodaySuggestions(muscleGroup) {
     card.querySelector('.save-card-btn').addEventListener('click', () => saveTodayCard(card, muscleGroup));
     card.querySelector('.add-set-btn').addEventListener('click', () => addSetToTodayCard(card));
     card.querySelectorAll('.remove-set-btn').forEach(btn =>
-      btn.addEventListener('click', () => { btn.closest('.set-row').remove(); renumberTodaySets(card); })
+      btn.addEventListener('click', () => { closeNumpad(); btn.closest('.set-row').remove(); renumberTodaySets(card); })
     );
   });
 }
 
 function buildSetRowHtml(idx, weight, unit, reps) {
   return `
-    <div class="set-row flex items-center gap-2 py-1" data-idx="${idx}">
+    <div class="set-row flex items-center gap-2 py-1.5" data-idx="${idx}">
       <span class="set-label text-xs text-gray-500 w-12 flex-shrink-0">セット${idx + 1}</span>
-      <input type="number" inputmode="decimal" value="${weight}" step="0.5"
-        class="set-weight w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500">
+      <input type="text" readonly inputmode="none" value="${weight}"
+        data-numpad="decimal" data-numpad-label="重量（${unit}）"
+        class="set-weight num-input w-20 bg-gray-800 border border-gray-700 rounded-xl px-2 py-3 text-white text-center focus:outline-none">
       <span class="text-xs text-gray-400">${unit} ×</span>
-      <input type="number" inputmode="numeric" value="${reps}"
-        class="set-reps w-14 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500">
+      <input type="text" readonly inputmode="none" value="${reps}"
+        data-numpad="numeric" data-numpad-label="回数"
+        class="set-reps num-input w-16 bg-gray-800 border border-gray-700 rounded-xl px-2 py-3 text-white text-center focus:outline-none">
       <span class="text-xs text-gray-400">回</span>
-      <button class="remove-set-btn text-gray-600 text-lg leading-none ml-auto px-1">×</button>
+      <button class="remove-set-btn text-gray-600 text-2xl leading-none ml-auto px-3 py-1">×</button>
     </div>`;
 }
 
@@ -263,7 +267,7 @@ function addSetToTodayCard(card) {
   tmp.innerHTML = buildSetRowHtml(idx, lastWeight, unit, lastReps);
   const newRow = tmp.firstElementChild;
   newRow.querySelector('.remove-set-btn').addEventListener('click', () => {
-    newRow.remove(); renumberTodaySets(card);
+    closeNumpad(); newRow.remove(); renumberTodaySets(card);
   });
   list.appendChild(newRow);
 }
@@ -399,8 +403,8 @@ function buildEntryCard(entry, showActions, onDelete) {
       <span class="text-xs text-gray-600">総ボリューム: <span class="text-gray-400 font-semibold">${totalVol.toFixed(1)}${unit}</span></span>
       ${showActions ? `
         <div class="flex items-center gap-3">
-          <button class="text-xs text-indigo-400 font-medium edit-entry-btn" data-id="${entry.id}">編集</button>
-          <button class="text-xs text-red-500 font-medium delete-entry-btn" data-id="${entry.id}">削除</button>
+          <button class="text-sm text-indigo-400 font-semibold edit-entry-btn px-3 py-3 rounded-lg" data-id="${entry.id}">編集</button>
+          <button class="text-sm text-red-500 font-semibold delete-entry-btn px-3 py-3 -mr-2 rounded-lg" data-id="${entry.id}">削除</button>
         </div>` : ''}
     </div>
     ${memoHtml}
@@ -479,7 +483,7 @@ function initAddForm() {
 function updateMuscleBtns(selector, selected) {
   document.querySelectorAll(selector).forEach(btn => {
     const active = btn.dataset.muscle === selected;
-    const base = 'px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors';
+    const base = 'py-4 rounded-2xl text-base font-bold border transition-colors';
     const cls = btn.classList.contains('edit-muscle-btn') ? 'edit-muscle-btn' : 'muscle-btn';
     btn.className = `${cls} ${base}`;
     const c = MUSCLE_COLORS[btn.dataset.muscle];
@@ -639,6 +643,7 @@ document.getElementById('suggestions-toggle').addEventListener('click', () => {
 });
 
 function renderSets() {
+  closeNumpad();
   const container = document.getElementById('sets-container');
   container.innerHTML = '';
   sets.forEach((set, i) => {
@@ -648,30 +653,36 @@ function renderSets() {
       <span class="text-xs text-gray-500 w-14 flex-shrink-0">セット${i + 1}</span>
       <div class="flex-1 relative">
         <input
-          type="number"
-          inputmode="decimal"
+          type="text"
+          readonly
+          inputmode="none"
           placeholder="重量"
           value="${set.weight}"
           data-set="${i}"
           data-field="weight"
-          class="set-weight w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm text-right pr-10 focus:outline-none focus:border-indigo-500"
+          data-numpad="decimal"
+          data-numpad-label="重量（${currentUnit}）"
+          class="set-weight num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-10 focus:outline-none"
         />
         <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${currentUnit}</span>
       </div>
       <span class="text-gray-600">×</span>
       <div class="flex-1 relative">
         <input
-          type="number"
-          inputmode="numeric"
+          type="text"
+          readonly
+          inputmode="none"
           placeholder="回数"
           value="${set.reps}"
           data-set="${i}"
           data-field="reps"
-          class="set-reps w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm text-right pr-8 focus:outline-none focus:border-indigo-500"
+          data-numpad="numeric"
+          data-numpad-label="回数"
+          class="set-reps num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-8 focus:outline-none"
         />
         <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">回</span>
       </div>
-      ${sets.length > 1 ? `<button class="remove-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-lg leading-none transition-colors" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
+      ${sets.length > 1 ? `<button class="remove-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-2xl leading-none transition-colors px-2 py-2" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
     `;
     container.appendChild(row);
   });
@@ -686,6 +697,7 @@ function renderSets() {
 
   container.querySelectorAll('.remove-set-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      closeNumpad();
       const idx = parseInt(btn.dataset.set);
       sets.splice(idx, 1);
       renderSets();
@@ -896,9 +908,9 @@ function showToast(msg) {
 function renderHistory() {
   // Update toggle button styles
   document.getElementById('history-list-btn').className =
-    `history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${historyViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
+    `history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${historyViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
   document.getElementById('history-cal-btn').className =
-    `history-view-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${historyViewMode === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
+    `history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${historyViewMode === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
 
   renderHistoryFilters();
 
@@ -917,7 +929,7 @@ function renderHistoryFilters() {
   const muscles = ['', '胸', '背中', '脚', '肩', '腕', '腹'];
   muscles.forEach(m => {
     const btn = document.createElement('button');
-    btn.className = 'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors';
+    btn.className = 'flex-shrink-0 px-5 py-2.5 rounded-full text-base font-semibold border transition-colors';
     btn.dataset.muscle = m;
     btn.textContent = m || 'すべて';
     const isActive = historyMuscleFilter === m;
@@ -1281,7 +1293,7 @@ function renderGraphMusclePills() {
   const muscles = ['', '胸', '背中', '脚', '肩', '腕', '腹'];
   muscles.forEach(m => {
     const btn = document.createElement('button');
-    btn.className = 'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors';
+    btn.className = 'flex-shrink-0 px-5 py-2.5 rounded-full text-base font-semibold border transition-colors';
     btn.dataset.muscle = m;
     btn.textContent = m || 'すべて';
     const isActive = graphMuscleFilter === m;
@@ -1560,11 +1572,13 @@ function openEditModal(id) {
 }
 
 function closeEditModal() {
+  closeNumpad();
   document.getElementById('edit-modal').classList.add('hidden');
   editingEntryId = null;
 }
 
 function renderEditSets() {
+  closeNumpad();
   const container = document.getElementById('edit-sets-container');
   container.innerHTML = '';
   editSets.forEach((set, i) => {
@@ -1573,19 +1587,21 @@ function renderEditSets() {
     row.innerHTML = `
       <span class="text-xs text-gray-500 w-14 flex-shrink-0">セット${i + 1}</span>
       <div class="flex-1 relative">
-        <input type="number" inputmode="decimal" placeholder="重量"
+        <input type="text" readonly inputmode="none" placeholder="重量"
           value="${set.weight}" data-set="${i}" data-field="weight"
-          class="edit-set-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm text-right pr-10 focus:outline-none focus:border-indigo-500" />
+          data-numpad="decimal" data-numpad-label="重量（${editUnit}）"
+          class="edit-set-input num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-10 focus:outline-none" />
         <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${editUnit}</span>
       </div>
       <span class="text-gray-600">×</span>
       <div class="flex-1 relative">
-        <input type="number" inputmode="numeric" placeholder="回数"
+        <input type="text" readonly inputmode="none" placeholder="回数"
           value="${set.reps}" data-set="${i}" data-field="reps"
-          class="edit-set-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm text-right pr-8 focus:outline-none focus:border-indigo-500" />
+          data-numpad="numeric" data-numpad-label="回数"
+          class="edit-set-input num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-8 focus:outline-none" />
         <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">回</span>
       </div>
-      ${editSets.length > 1 ? `<button class="remove-edit-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-lg leading-none transition-colors" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
+      ${editSets.length > 1 ? `<button class="remove-edit-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-2xl leading-none transition-colors px-2 py-2" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
     `;
     container.appendChild(row);
   });
@@ -1597,6 +1613,7 @@ function renderEditSets() {
   });
   container.querySelectorAll('.remove-edit-set-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      closeNumpad();
       editSets.splice(parseInt(btn.dataset.set), 1);
       renderEditSets();
       updateEditAddSetBtn();
@@ -2090,6 +2107,148 @@ function repairOrphanedExerciseIds() {
   console.log(`[repair] ${repaired}件のエントリのexerciseIdを修復しました`);
   return repaired;
 }
+
+/* ============================================================
+   数値キーパッド（自前実装）
+   - iOS標準テンキーは「小数点＝左下 / ⌫＝右下」で押し間違えるため置き換え
+   - 本キーパッド: ⌫＝右上（値表示の隣） / 小数点＝右下
+   - 入力欄は readonly + inputmode=none にしてOSキーボードを出さない
+     （＝フォーカス時のズームも起きないので保存ボタンが隠れない）
+   ============================================================ */
+const numpad = {
+  el: null, valueEl: null, labelEl: null, dotEl: null,
+  target: null,        // 入力中の <input>
+  buf: '',             // 表示中の文字列
+  allowDecimal: true,
+  fresh: false,        // 開いた直後（最初の数字入力で全置換）
+};
+
+function numpadEls() {
+  if (!numpad.el) {
+    numpad.el      = document.getElementById('numpad');
+    numpad.valueEl = document.getElementById('numpad-value');
+    numpad.labelEl = document.getElementById('numpad-label');
+    numpad.dotEl   = document.getElementById('numpad-dot');
+  }
+  return numpad.el;
+}
+
+function openNumpad(input) {
+  if (!numpadEls()) return;
+  if (numpad.target && numpad.target !== input) {
+    if (numpad.target.isConnected) commitNumpad(true);   // 別の欄へ移るときも末尾の「.」を整える
+    numpad.target.classList.remove('numpad-active');
+  }
+
+  numpad.target       = input;
+  numpad.allowDecimal = input.dataset.numpad !== 'numeric';
+  numpad.buf          = String(input.value || '');
+  numpad.fresh        = numpad.buf !== '';
+
+  input.classList.add('numpad-active');
+  numpad.labelEl.textContent = input.dataset.numpadLabel || '数値';
+  numpad.dotEl.classList.toggle('opacity-30', !numpad.allowDecimal);
+  numpad.dotEl.classList.toggle('pointer-events-none', !numpad.allowDecimal);
+
+  numpad.el.classList.remove('hidden');
+  document.body.classList.add('numpad-open');
+  renderNumpadValue();
+
+  // 入力中の行がキーパッドに隠れないようスクロール（レイアウト確定後にもう一度）
+  scrollInputAboveNumpad(input);
+  setTimeout(() => scrollInputAboveNumpad(input), 0);
+}
+
+function scrollInputAboveNumpad(input) {
+  const cont = input.closest('#edit-scroll') || document.getElementById('content');
+  if (!cont) return;
+  const padTop  = numpad.el.getBoundingClientRect().top;
+  const contTop = cont.getBoundingClientRect().top;
+  const r = input.getBoundingClientRect();
+  const overlap = r.bottom - (padTop - 16);   // キーパッドに掛かっている量
+  if (overlap > 0)              cont.scrollTop += overlap;
+  else if (r.top < contTop + 8) cont.scrollTop -= (contTop + 8 - r.top);
+}
+
+function closeNumpad() {
+  if (!numpad.el || numpad.el.classList.contains('hidden')) return;
+  if (numpad.target && numpad.target.isConnected) commitNumpad(true);
+  if (numpad.target) numpad.target.classList.remove('numpad-active');
+  numpad.target = null;
+  numpad.el.classList.add('hidden');
+  document.body.classList.remove('numpad-open');
+}
+
+function renderNumpadValue() {
+  numpad.valueEl.textContent = numpad.buf === '' ? '0' : numpad.buf;
+  numpad.valueEl.classList.toggle('is-fresh', numpad.fresh);
+}
+
+// 入力欄へ反映（既存の input リスナーに拾わせるためイベントも発火）
+function commitNumpad(final) {
+  if (!numpad.target) return;
+  let v = numpad.buf;
+  if (final) {
+    if (v.endsWith('.')) v = v.slice(0, -1);
+    if (v === '.' || v === '') v = '';
+    numpad.buf = v;
+  }
+  numpad.target.value = v;
+  numpad.target.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function numpadPress(key) {
+  if (!numpad.target) return;
+
+  if (key === 'back') {
+    numpad.fresh = false;
+    numpad.buf = numpad.buf.slice(0, -1);
+  } else if (key === '.') {
+    if (!numpad.allowDecimal) return;
+    if (numpad.fresh) { numpad.buf = '0'; numpad.fresh = false; }
+    if (numpad.buf.includes('.')) return;
+    numpad.buf = (numpad.buf === '' ? '0' : numpad.buf) + '.';
+  } else {
+    // 数字: 開いた直後の最初の1打は上書き（打ち直しが多いため）
+    if (numpad.fresh) { numpad.buf = ''; numpad.fresh = false; }
+    if (numpad.buf.replace('.', '').length >= 6) return;
+    if (numpad.buf === '0') numpad.buf = '';
+    numpad.buf += key;
+  }
+  renderNumpadValue();
+  commitNumpad(false);
+}
+
+// 数値欄タップでキーパッドを開く
+document.addEventListener('click', (e) => {
+  const inp = e.target.closest('input.num-input');
+  if (inp) { openNumpad(inp); return; }
+  if (!numpad.el || numpad.el.classList.contains('hidden')) return;
+  if (e.target.closest('#numpad')) return;
+  closeNumpad();
+});
+
+document.addEventListener('DOMContentLoaded', bindNumpadKeys);
+if (document.readyState !== 'loading') bindNumpadKeys();
+
+function bindNumpadKeys() {
+  if (!numpadEls() || numpad.el.dataset.bound) return;
+  numpad.el.dataset.bound = '1';
+  numpad.el.querySelectorAll('[data-np]').forEach(btn => {
+    btn.addEventListener('click', () => numpadPress(btn.dataset.np));
+  });
+  document.getElementById('numpad-back').addEventListener('click', () => numpadPress('back'));
+  document.getElementById('numpad-done').addEventListener('click', closeNumpad);
+}
+
+// Mac（物理キーボード）でもそのまま打てるように
+document.addEventListener('keydown', (e) => {
+  if (!numpad.target) return;
+  if (/^[0-9]$/.test(e.key))      { numpadPress(e.key); e.preventDefault(); }
+  else if (e.key === '.')         { numpadPress('.');   e.preventDefault(); }
+  else if (e.key === 'Backspace') { numpadPress('back'); e.preventDefault(); }
+  else if (e.key === 'Enter' || e.key === 'Escape') { closeNumpad(); e.preventDefault(); }
+});
 
 (function init() {
   deduplicateExercises();  // 起動時に重複種目を自動統合
