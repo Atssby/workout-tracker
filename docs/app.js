@@ -20,8 +20,38 @@ function save(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function getEntries() { return load(KEYS.entries, []); }
-function saveEntries(e)   { save(KEYS.entries, e);   scheduleFsSync(); }
+// --- エントリ ---------------------------------------------------------------
+// 削除は物理削除ではなく tombstone（deleted:true）で表す。
+// 物理削除だと、同期時に「相手が持っていて自分が持っていない」＝「まだ受け取っていない」
+// なのか「消した」なのか区別できず、削除した記録が他端末から復活してしまうため。
+// getEntries() は tombstone を除いた配列を返すので、既存の呼び出し側は変更不要。
+function getEntriesRaw() { return load(KEYS.entries, []); }
+function getEntries() { return getEntriesRaw().filter(e => !e.deleted); }
+
+// 引数は「表示用（tombstone を含まない）」配列。既存の tombstone は保持して書き戻す。
+function saveEntries(e) {
+  const keep = new Set(e.map(x => x.id));
+  const tombstones = getEntriesRaw().filter(x => x.deleted && !keep.has(x.id));
+  save(KEYS.entries, tombstones.length ? [...e, ...tombstones] : e);
+  scheduleFsSync();
+}
+
+// tombstone を含む生の配列をそのまま書く（同期のマージ結果を書き戻す用）
+function saveEntriesRaw(e) { save(KEYS.entries, e); }
+
+function nowIso() { return new Date().toISOString(); }
+
+// 変更時刻を打つ。マージはこの値で新旧を判定する
+function stampEntry(entry) { return { ...entry, updatedAt: nowIso() }; }
+
+// 指定IDのエントリを tombstone 化して保存
+function deleteEntryById(id) {
+  const raw = getEntriesRaw().map(e =>
+    e.id === id ? { id: e.id, deleted: true, updatedAt: nowIso() } : e
+  );
+  save(KEYS.entries, raw);
+  scheduleFsSync();
+}
 
 function getExercises() { return load(KEYS.exercises, []); }
 function saveExercises(e) { save(KEYS.exercises, e); scheduleFsSync(); }
@@ -53,18 +83,81 @@ function formatDate(dateStr) {
 }
 
 // ============================================================
+// 単位（kg / lbs）
+// ============================================================
+// セットは記録時の単位のまま保存する（過去データを書き換えない）。
+// 合計・最大・グラフなど「複数セットをまたぐ計算」は必ず kg に揃えてから行う。
+// 揃えないと 2.5lbs(=1.1kg) と 5.0kg が同じ軸に「2.5」と「5.0」で並ぶ。
+
+const LBS_TO_KG = 0.45359237;
+const MAX_SETS = 10;   // 記録追加・編集・今日ページで共通（以前は5／5／無制限とバラバラだった）
+
+// テンプレートリテラルで innerHTML を組む箇所に、ユーザー入力・保存値を差し込むときは必ずこれを通す。
+// 属性値（value="..." など）にも使うので、引用符も実体参照にしている。
+function escapeHtml(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toKg(weight, unit) {
+  const w = parseFloat(weight);          // インポート由来は文字列なのでここで吸収する
+  if (!isFinite(w)) return 0;
+  return unit === 'lbs' ? w * LBS_TO_KG : w;
+}
+
+function fromKg(kg, unit) {
+  return unit === 'lbs' ? kg / LBS_TO_KG : kg;
+}
+
+// 集計値の表示用フォーマット（内部kg → 表示単位）
+function formatKg(kg, unit) {
+  const v = fromKg(kg, unit);
+  return (Math.round(v * 10) / 10).toLocaleString('ja-JP', { maximumFractionDigits: 1 });
+}
+
+// エントリ内で単位が混在しているか（混在時は画面に注意マークを出す）
+function hasMixedUnits(sets) {
+  return new Set((sets || []).map(s => s.unit || 'kg')).size > 1;
+}
+
+// エントリの総ボリューム・最大重量（どちらも kg）
+function entryVolumeKg(sets) {
+  return (sets || []).reduce((sum, s) => sum + toKg(s.weight, s.unit) * (parseInt(s.reps) || 0), 0);
+}
+function entryMaxKg(sets) {
+  return (sets || []).reduce((mx, s) => Math.max(mx, toKg(s.weight, s.unit)), 0);
+}
+
+// ============================================================
 // MUSCLE COLOR MAP
 // ============================================================
 
+/* activeBg = ドット・枠線などの装飾用（文字を乗せない）
+   sel      = 選択中の背景。白文字で 4.5:1 以上になるまで暗くしてある
+   onDark   = 未選択時の文字色（暗いテーマ）。tint背景に対して 4.5:1 以上
+   onLight  = 未選択時の文字色（明るいテーマ）。同上
+   ※ 数値は WCAG 2.2 SC 1.4.3（通常文字 4.5:1）で実測して決定 */
 const MUSCLE_COLORS = {
   //                                                                           ダーク用テキスト  ライト用テキスト（濃色）
-  '胸':  { activeBg: '#dc2626', border: '#dc2626', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5', tagTextLight: '#991b1b' },
-  '背中': { activeBg: '#2563eb', border: '#2563eb', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd', tagTextLight: '#1e40af' },
-  '脚':  { activeBg: '#16a34a', border: '#16a34a', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac', tagTextLight: '#14532d' },
-  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a', tagTextLight: '#78350f' },
-  '腕':  { activeBg: '#9333ea', border: '#9333ea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe', tagTextLight: '#581c87' },
-  '腹':  { activeBg: '#0d9488', border: '#0d9488', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4', tagTextLight: '#134e4a' },
+  '胸':  { activeBg: '#dc2626', border: '#dc2626', sel: '#dc2626', onDark: '#e14545', onLight: '#ca2121', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5', tagTextLight: '#991b1b' },
+  '背中': { activeBg: '#2563eb', border: '#2563eb', sel: '#2563eb', onDark: '#467aee', onLight: '#1c5cea', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd', tagTextLight: '#1e40af' },
+  '脚':  { activeBg: '#16a34a', border: '#16a34a', sel: '#12863d', onDark: '#16a34a', onLight: '#117b38', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac', tagTextLight: '#14532d' },
+  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', sel: '#9d6b03', onDark: '#ca8a04', onLight: '#906303', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a', tagTextLight: '#78350f' },
+  '腕':  { activeBg: '#9333ea', border: '#9333ea', sel: '#9333ea', onDark: '#a556ee', onLight: '#912eea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe', tagTextLight: '#581c87' },
+  '腹':  { activeBg: '#0d9488', border: '#0d9488', sel: '#0c8479', onDark: '#0d9488', onLight: '#0b786e', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4', tagTextLight: '#134e4a' },
 };
+
+// 明るいテーマかどうか（テーマ依存の色を選ぶときに使う）
+function isLightTheme() {
+  return document.body.classList.contains('light-mode') ||
+         document.documentElement.getAttribute('data-theme') === 'light';
+}
+
+// 未選択の部位ボタン／ピルの文字色
+function muscleIdleText(c) {
+  return isLightTheme() ? c.onLight : c.onDark;
+}
 
 function muscleTagHtml(muscle) {
   if (!muscle) return '';
@@ -72,9 +165,9 @@ function muscleTagHtml(muscle) {
   if (c) {
     const isLight = document.body.classList.contains('light-mode');
     const textColor = isLight ? c.tagTextLight : c.tagText;
-    return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ml-1" style="background:${c.tagBg};border:1px solid ${c.tagBorder};color:${textColor}">${muscle}</span>`;
+    return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full ml-1" style="background:${c.tagBg};border:1px solid ${c.tagBorder};color:${textColor}">${escapeHtml(muscle)}</span>`;
   }
-  return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300 ml-1">${muscle}</span>`;
+  return `<span class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-900 text-indigo-300 ml-1">${escapeHtml(muscle)}</span>`;
 }
 
 // ============================================================
@@ -91,6 +184,7 @@ let currentMuscleGroup = '';
 let editingEntryId = null;
 let editSets = [];
 let editUnit = 'kg';
+let editUnitTouched = false;
 let editMuscleGroup = '';
 let historyViewMode = 'list';
 let calendarYear = new Date().getFullYear();
@@ -211,44 +305,84 @@ function renderTodaySuggestions(muscleGroup) {
   }
 
   suggestions.forEach(entry => {
-    const unit = entry.sets[0]?.unit || 'kg';
+    // 今日すでにこの種目を保存済みか。あれば「その保存済みエントリ」をカードの中身にする
+    const saved = todayEntryFor(entry.exerciseName);
+    const src   = saved || entry;
+    const unit  = src.sets[0]?.unit || 'kg';
+
     const card = document.createElement('div');
     card.className = 'bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden';
     card.dataset.exerciseId   = entry.exerciseId || '';
     card.dataset.exerciseName = entry.exerciseName;
     card.dataset.unit         = unit;
+    if (saved) card.dataset.savedEntryId = saved.id;
 
-    const setsHtml = entry.sets.map((s, i) => buildSetRowHtml(i, s.weight, unit, s.reps)).join('');
+    const setsHtml = src.sets.map((s, i) => buildSetRowHtml(i, s.weight, s.unit || unit, s.reps)).join('');
 
     card.innerHTML = `
       <div class="flex items-center justify-between px-4 pt-4 pb-3">
-        <span class="font-bold text-white text-base">${entry.exerciseName}</span>
+        <span class="exercise-name font-bold text-white text-base"></span>
         <button class="save-card-btn px-6 py-3 bg-indigo-600 text-white text-base font-bold rounded-xl transition-colors active:bg-indigo-700">保存</button>
       </div>
       <div class="sets-list px-4 pb-2 space-y-1">${setsHtml}</div>
       <div class="px-4 pb-3 flex items-center gap-4">
         <button class="add-set-btn text-sm text-indigo-400 font-semibold px-3 py-2 -ml-3 rounded-lg">＋ セット追加</button>
+        <button class="edit-saved-btn hidden text-sm text-indigo-400 font-semibold px-3 py-2 -ml-3 rounded-lg">編集</button>
       </div>`;
+    // 種目名はユーザー入力なので innerHTML に混ぜず textContent で入れる
+    card.querySelector('.exercise-name').textContent = entry.exerciseName;
 
     container.appendChild(card);
 
     card.querySelector('.save-card-btn').addEventListener('click', () => saveTodayCard(card, muscleGroup));
     card.querySelector('.add-set-btn').addEventListener('click', () => addSetToTodayCard(card));
+    card.querySelector('.edit-saved-btn').addEventListener('click', () => {
+      if (card.dataset.savedEntryId) openEditModal(card.dataset.savedEntryId);
+    });
     card.querySelectorAll('.remove-set-btn').forEach(btn =>
       btn.addEventListener('click', () => { closeNumpad(); btn.closest('.set-row').remove(); renumberTodaySets(card); })
     );
+
+    // 保存済みなら、再描画後も「保存済み」の見た目を復元する。
+    // 以前はこの状態がDOMにしか無かったため、再描画のたびに未保存カードが復活し、
+    // もう一度押すと同じ内容が2件目として記録されていた。
+    if (saved) markTodayCardSaved(card);
   });
 }
 
+// 今日・同じ種目名のエントリを返す（種目名は大文字小文字と前後空白を無視して突き合わせる）
+function todayEntryFor(exerciseName) {
+  const key = (exerciseName || '').trim().toLowerCase();
+  if (!key) return null;
+  const today = todayStr();
+  return getEntries().find(e =>
+    e.date === today && (e.exerciseName || '').trim().toLowerCase() === key
+  ) || null;
+}
+
+function markTodayCardSaved(card) {
+  const saveBtn = card.querySelector('.save-card-btn');
+  saveBtn.textContent = '✓ 保存済み';
+  saveBtn.classList.remove('bg-indigo-600', 'active:bg-indigo-700');
+  saveBtn.classList.add('bg-green-700');
+  saveBtn.disabled = true;
+  card.querySelectorAll('input').forEach(inp => inp.disabled = true);
+  card.querySelectorAll('.remove-set-btn, .add-set-btn').forEach(b => b.classList.add('hidden'));
+  card.querySelector('.edit-saved-btn').classList.remove('hidden');
+  card.classList.add('opacity-60');
+}
+
 function buildSetRowHtml(idx, weight, unit, reps) {
+  // weight / unit / reps は保存値（インポート由来なら第三者由来でもありうる）。属性に入るので必ずエスケープする
+  const w = escapeHtml(weight), u = escapeHtml(unit), r = escapeHtml(reps);
   return `
     <div class="set-row flex items-center gap-2 py-1.5" data-idx="${idx}">
       <span class="set-label text-xs text-gray-500 w-12 flex-shrink-0">セット${idx + 1}</span>
-      <input type="text" readonly inputmode="none" value="${weight}"
-        data-numpad="decimal" data-numpad-label="重量（${unit}）"
+      <input type="text" readonly inputmode="none" value="${w}"
+        data-numpad="decimal" data-numpad-label="重量（${u}）"
         class="set-weight num-input w-20 bg-gray-800 border border-gray-700 rounded-xl px-2 py-3 text-white text-center focus:outline-none">
-      <span class="text-xs text-gray-400">${unit} ×</span>
-      <input type="text" readonly inputmode="none" value="${reps}"
+      <span class="text-xs text-gray-400">${u} ×</span>
+      <input type="text" readonly inputmode="none" value="${r}"
         data-numpad="numeric" data-numpad-label="回数"
         class="set-reps num-input w-16 bg-gray-800 border border-gray-700 rounded-xl px-2 py-3 text-white text-center focus:outline-none">
       <span class="text-xs text-gray-400">回</span>
@@ -259,6 +393,7 @@ function buildSetRowHtml(idx, weight, unit, reps) {
 function addSetToTodayCard(card) {
   const list = card.querySelector('.sets-list');
   const rows = list.querySelectorAll('.set-row');
+  if (rows.length >= MAX_SETS) { showToast(`セットは${MAX_SETS}件までです`); return; }
   const lastRow = rows[rows.length - 1];
   const lastWeight = lastRow ? lastRow.querySelector('.set-weight').value : '';
   const lastReps   = lastRow ? lastRow.querySelector('.set-reps').value : '';
@@ -307,33 +442,41 @@ function saveTodayCard(card, muscleGroup) {
     saveExercises(exercises);
   }
 
-  const entry = {
-    id: genId(),
-    date: today,
-    exerciseId: ex.id,
-    exerciseName,
-    muscleGroup,
-    sets,
-    memo: '',
-    gymIn: todayTime.in || '',
-    gymOut: todayTime.out || '',
-    createdAt: new Date().toISOString(),
-  };
+  // 今日すでに同じ種目があれば新規追加せず更新する（二重記録の防止）
+  const existing = todayEntryFor(exerciseName);
   const entries = getEntries();
-  entries.push(entry);
-  saveEntries(entries);
 
-  // カードを保存済み状態に
-  const saveBtn = card.querySelector('.save-card-btn');
-  saveBtn.textContent = '✓ 保存済み';
-  saveBtn.classList.replace('bg-indigo-600', 'bg-green-700');
-  saveBtn.disabled = true;
-  card.querySelectorAll('input').forEach(inp => inp.disabled = true);
-  card.querySelectorAll('.remove-set-btn, .add-set-btn').forEach(b => b.classList.add('hidden'));
-  card.classList.add('opacity-60');
+  if (existing) {
+    const updated = entries.map(e =>
+      e.id === existing.id
+        ? stampEntry({ ...e, exerciseId: ex.id, muscleGroup, sets,
+                       gymIn: todayTime.in || e.gymIn || '', gymOut: todayTime.out || e.gymOut || '' })
+        : e
+    );
+    saveEntries(updated);
+    card.dataset.savedEntryId = existing.id;
+    showToast(`${exerciseName} を更新しました`);
+  } else {
+    const entry = stampEntry({
+      id: genId(),
+      date: today,
+      exerciseId: ex.id,
+      exerciseName,
+      muscleGroup,
+      sets,
+      memo: '',
+      gymIn: todayTime.in || '',
+      gymOut: todayTime.out || '',
+      createdAt: nowIso(),
+    });
+    entries.push(entry);
+    saveEntries(entries);
+    card.dataset.savedEntryId = entry.id;
+    showToast(`${exerciseName} を保存しました`);
+  }
 
+  markTodayCardSaved(card);
   renderTodaySummary();
-  showToast(`${exerciseName} を保存しました`);
 }
 
 document.getElementById('today-summary-btn').addEventListener('click', () => switchTab('history'));
@@ -370,47 +513,50 @@ function buildEntryCard(entry, showActions, onDelete) {
   const card = document.createElement('div');
   card.className = 'bg-gray-900 rounded-2xl p-4 border border-gray-800';
 
-  const totalVol = entry.sets.reduce((s, set) => s + set.weight * set.reps, 0);
-  const maxW = Math.max(...entry.sets.map(s => s.weight));
-  const unit = entry.sets[0]?.unit || 'kg';
+  // 集計は必ず kg に揃えてから行い、表示は既定単位で出す。
+  // 以前は単位を無視して合算し、先頭セットの単位をラベルに貼っていたため、
+  // lbs と kg が混ざったエントリで誤った数値・誤った単位が表示されていた。
+  const dispUnit = getDefaultUnit();
+  const totalVolKg = entryVolumeKg(entry.sets);
+  const maxKg      = entryMaxKg(entry.sets);
+  const mixed      = hasMixedUnits(entry.sets);
 
   const setsHtml = entry.sets.map((s, i) =>
     `<div class="flex items-center gap-3 py-1">
       <span class="text-xs text-gray-600 w-12">セット${i + 1}</span>
-      <span class="text-sm font-semibold text-white">${s.weight}${s.unit}</span>
+      <span class="text-sm font-semibold text-white">${escapeHtml(s.weight)}${escapeHtml(s.unit || 'kg')}</span>
       <span class="text-xs text-gray-500">×</span>
-      <span class="text-sm font-semibold text-white">${s.reps}回</span>
+      <span class="text-sm font-semibold text-white">${escapeHtml(s.reps)}回</span>
     </div>`
   ).join('');
-
-  const memoHtml = entry.memo
-    ? `<div class="mt-2 pt-2 border-t border-gray-800 text-xs text-gray-500 leading-relaxed whitespace-pre-wrap">${entry.memo}</div>`
-    : '';
 
   card.innerHTML = `
     <div class="flex items-start justify-between mb-3">
       <div class="flex-1 min-w-0">
         <div class="flex items-center flex-wrap gap-1">
-          <span class="text-base font-bold text-white">${entry.exerciseName}</span>${muscleTagHtml(entry.muscleGroup)}
+          <span class="exercise-name text-base font-bold text-white"></span>${muscleTagHtml(entry.muscleGroup)}
         </div>
-        <div class="text-xs text-gray-500 mt-0.5">${entry.sets.length}セット</div>
+        <div class="text-xs text-gray-500 mt-0.5">${entry.sets.length}セット${mixed ? ' ・<span class="text-yellow-500">単位混在</span>' : ''}</div>
       </div>
       <div class="text-right ml-3">
         <div class="text-xs text-gray-500">最大</div>
-        <div class="text-sm font-bold text-indigo-400">${maxW}${unit}</div>
+        <div class="text-sm font-bold text-indigo-400">${formatKg(maxKg, dispUnit)}${dispUnit}</div>
       </div>
     </div>
     <div class="border-t border-gray-800 pt-2">${setsHtml}</div>
     <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-800">
-      <span class="text-xs text-gray-600">総ボリューム: <span class="text-gray-400 font-semibold">${totalVol.toFixed(1)}${unit}</span></span>
+      <span class="text-xs text-gray-600">総ボリューム: <span class="text-gray-400 font-semibold">${formatKg(totalVolKg, dispUnit)}${dispUnit}</span></span>
       ${showActions ? `
         <div class="flex items-center gap-3">
-          <button class="text-sm text-indigo-400 font-semibold edit-entry-btn px-3 py-3 rounded-lg" data-id="${entry.id}">編集</button>
-          <button class="text-sm text-red-500 font-semibold delete-entry-btn px-3 py-3 -mr-2 rounded-lg" data-id="${entry.id}">削除</button>
+          <button class="text-sm text-indigo-400 font-semibold edit-entry-btn px-3 py-3 rounded-lg">編集</button>
+          <button class="text-sm text-red-500 font-semibold delete-entry-btn px-3 py-3 -mr-2 rounded-lg">削除</button>
         </div>` : ''}
     </div>
-    ${memoHtml}
+    ${entry.memo ? '<div class="entry-memo mt-2 pt-2 border-t border-gray-800 text-xs text-gray-500 leading-relaxed whitespace-pre-wrap"></div>' : ''}
   `;
+  // 種目名・メモはユーザー入力。innerHTML に混ぜず textContent で入れる
+  card.querySelector('.exercise-name').textContent = entry.exerciseName || '';
+  if (entry.memo) card.querySelector('.entry-memo').textContent = entry.memo;
 
   if (showActions) {
     card.querySelector('.edit-entry-btn').addEventListener('click', () => {
@@ -418,8 +564,8 @@ function buildEntryCard(entry, showActions, onDelete) {
     });
     card.querySelector('.delete-entry-btn').addEventListener('click', () => {
       if (confirm(`「${entry.exerciseName}」の記録を削除しますか？`)) {
-        const entries = getEntries().filter(e => e.id !== entry.id);
-        saveEntries(entries);
+        // 物理削除ではなく tombstone 化する。物理削除だと他端末から復活しうる
+        deleteEntryById(entry.id);
         if (onDelete) onDelete(); else renderToday();
       }
     });
@@ -589,10 +735,10 @@ function renderSuggestions(muscleGroup) {
 
     card.innerHTML = `
       <div class="flex items-center justify-between gap-2">
-        <span class="font-semibold text-sm text-white leading-tight">${entry.exerciseName}</span>
+        <span class="font-semibold text-sm text-white leading-tight">${escapeHtml(entry.exerciseName)}</span>
         <span class="text-xs text-gray-500 flex-shrink-0">${dateStr}</span>
       </div>
-      <div class="text-xs text-gray-400 mt-0.5 leading-relaxed">${setsStr}</div>
+      <div class="text-xs text-gray-400 mt-0.5 leading-relaxed">${escapeHtml(setsStr)}</div>
     `;
 
     card.addEventListener('click', () => applySuggestion(entry, card));
@@ -614,12 +760,14 @@ function applySuggestion(entry, cardEl) {
   exerciseInput.value = entry.exerciseName;
   document.getElementById('exercise-dropdown').classList.add('hidden');
 
-  // 単位を合わせる（最初のセットの単位を採用）
+  // 単位を合わせる（最初のセットの単位を採用）。
+  // ここで saveDefaultUnit() を呼ぶと、カードをタップしただけでアプリ全体の既定単位が
+  // 書き換わり（かつ Firestore への全ドキュメント push まで走り）、kg/lbs 混在の原因になっていた。
+  // このフォームの入力単位を合わせるだけに留め、既定単位は kg/lbs ボタンでのみ変更する。
   if (entry.sets && entry.sets.length > 0) {
     const unit = entry.sets[0].unit || currentUnit;
     if (unit !== currentUnit) {
       currentUnit = unit;
-      saveDefaultUnit(currentUnit);
       document.getElementById('unit-kg').className  = currentUnit === 'kg'
         ? 'flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white'
         : 'flex-1 py-3 rounded-2xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
@@ -708,10 +856,10 @@ function renderSets() {
 }
 
 document.getElementById('add-set-btn').addEventListener('click', () => {
-  if (sets.length >= 5) return;
+  if (sets.length >= MAX_SETS) return;
   sets.push({ weight: '', reps: '' });
   renderSets();
-  if (sets.length >= 5) {
+  if (sets.length >= MAX_SETS) {
     document.getElementById('add-set-btn').classList.add('opacity-40', 'pointer-events-none');
   }
 });
@@ -769,7 +917,7 @@ function showExerciseDropdown(query) {
   if (q && !exercises.some(ex => ex.name.toLowerCase() === q)) {
     const addNew = document.createElement('div');
     addNew.className = 'px-4 py-3 text-sm text-indigo-400 font-semibold border-b border-gray-700 cursor-pointer hover:bg-gray-700 flex items-center gap-2';
-    addNew.innerHTML = `<span class="text-indigo-500">+</span> 「${query}」を追加`;
+    addNew.innerHTML = `<span class="text-indigo-500">+</span> 「${escapeHtml(query)}」を追加`;
     addNew.addEventListener('click', () => {
       exerciseInput.value = query;
       exerciseDropdown.classList.add('hidden');
@@ -864,7 +1012,7 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
 
   const memo = document.getElementById('add-memo').value.trim();
 
-  const entry = {
+  const entry = stampEntry({
     id: genId(),
     date,
     gymIn,
@@ -874,8 +1022,8 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
     muscleGroup: currentMuscleGroup,
     sets: validSets,
     memo,
-    createdAt: new Date().toISOString(),
-  };
+    createdAt: nowIso(),
+  });
 
   const entries = getEntries();
   entries.push(entry);
@@ -1382,25 +1530,30 @@ function renderGraph() {
   canvas.classList.remove('hidden');
   statsEl.classList.remove('hidden');
 
-  // Build data points per date (take max per date)
+  // 日付ごとに集計する。値はすべて kg に揃えてから比較・合算する。
+  // 以前は単位を無視して素の数値を使っていたため、2.5lbs(=1.1kg) が 5.0kg より
+  // 小さい「2.5」として同じ軸に並んでいた。
+  const dispUnit = getDefaultUnit();
   const byDate = {};
   entries.forEach(entry => {
-    const maxW = Math.max(...entry.sets.map(s => s.weight));
-    const volume = entry.sets.reduce((s, set) => s + set.weight * set.reps, 0);
-    const unit = entry.sets[0]?.unit || 'kg';
+    const maxKg = entryMaxKg(entry.sets);
+    const volKg = entryVolumeKg(entry.sets);
     if (!byDate[entry.date]) {
-      byDate[entry.date] = { maxW, volume, unit };
+      byDate[entry.date] = { maxKg, volKg };
     } else {
-      byDate[entry.date].maxW = Math.max(byDate[entry.date].maxW, maxW);
-      byDate[entry.date].volume = Math.max(byDate[entry.date].volume, volume);
+      // 同じ日に同じ種目を複数回記録した場合: 最大重量は最大、ボリュームは合算。
+      // 以前はボリュームも Math.max にしていたため、2回に分けた日の総量が過小になっていた。
+      byDate[entry.date].maxKg = Math.max(byDate[entry.date].maxKg, maxKg);
+      byDate[entry.date].volKg += volKg;
     }
   });
 
   const sortedDates = Object.keys(byDate).sort();
   const dataPoints = sortedDates.map(d => ({
     date: d,
-    value: graphMode === 'weight' ? byDate[d].maxW : byDate[d].volume,
-    unit: byDate[d].unit,
+    // 表示単位に変換した値をプロットする（軸・統計・ラベルがすべて同じ単位になる）
+    value: fromKg(graphMode === 'weight' ? byDate[d].maxKg : byDate[d].volKg, dispUnit),
+    unit: dispUnit,
   }));
 
   // Draw chart using Canvas API
@@ -1412,20 +1565,19 @@ function renderGraph() {
   const latestVal = values[values.length - 1];
   const firstVal = values[0];
   const diff = latestVal - firstVal;
-  const unit = dataPoints[dataPoints.length - 1]?.unit || 'kg';
 
   statsEl.innerHTML = `
     <div class="bg-gray-800 rounded-xl p-3 text-center">
       <div class="text-xs text-gray-500 mb-1">最大</div>
-      <div class="text-sm font-bold text-indigo-400">${maxVal.toFixed(1)}<span class="text-xs text-gray-500">${unit}</span></div>
+      <div class="text-sm font-bold text-indigo-400">${maxVal.toFixed(1)}<span class="text-xs text-gray-500">${dispUnit}</span></div>
     </div>
     <div class="bg-gray-800 rounded-xl p-3 text-center">
       <div class="text-xs text-gray-500 mb-1">最新</div>
-      <div class="text-sm font-bold text-white">${latestVal.toFixed(1)}<span class="text-xs text-gray-500">${unit}</span></div>
+      <div class="text-sm font-bold text-white">${latestVal.toFixed(1)}<span class="text-xs text-gray-500">${dispUnit}</span></div>
     </div>
     <div class="bg-gray-800 rounded-xl p-3 text-center">
       <div class="text-xs text-gray-500 mb-1">増減</div>
-      <div class="text-sm font-bold ${diff >= 0 ? 'text-green-400' : 'text-red-400'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}<span class="text-xs opacity-75">${unit}</span></div>
+      <div class="text-sm font-bold ${diff >= 0 ? 'text-green-400' : 'text-red-400'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}<span class="text-xs opacity-75">${dispUnit}</span></div>
     </div>
   `;
 }
@@ -1554,8 +1706,11 @@ function openEditModal(id) {
   const entry = getEntries().find(e => e.id === id);
   if (!entry) return;
   editingEntryId = id;
-  editSets = entry.sets.map(s => ({ weight: String(s.weight), reps: String(s.reps) }));
+  // セットごとの単位を保持する。以前は sets[0] の単位を全セットに書き戻していたため、
+  // kg と lbs が混ざったエントリを開いて保存しただけで、単位が黙って書き換わっていた。
+  editSets = entry.sets.map(s => ({ weight: String(s.weight), reps: String(s.reps), unit: s.unit || 'kg' }));
   editUnit = entry.sets[0]?.unit || 'kg';
+  editUnitTouched = false;   // 単位ボタンを押したときだけ全セットへ適用する
   editMuscleGroup = entry.muscleGroup || '';
 
   document.getElementById('edit-exercise-display').textContent = entry.exerciseName;
@@ -1570,6 +1725,7 @@ function openEditModal(id) {
   updateEditUnitButtons();
   updateMuscleBtns('.edit-muscle-btn', editMuscleGroup);
   renderEditSets();
+  updateEditAddSetBtn();
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
@@ -1584,16 +1740,17 @@ function renderEditSets() {
   const container = document.getElementById('edit-sets-container');
   container.innerHTML = '';
   editSets.forEach((set, i) => {
+    const rowUnit = editUnitTouched ? editUnit : (set.unit || editUnit);
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2';
     row.innerHTML = `
       <span class="text-xs text-gray-500 w-14 flex-shrink-0">セット${i + 1}</span>
       <div class="flex-1 relative">
         <input type="text" readonly inputmode="none" placeholder="重量"
-          value="${set.weight}" data-set="${i}" data-field="weight"
-          data-numpad="decimal" data-numpad-label="重量（${editUnit}）"
+          value="${escapeHtml(set.weight)}" data-set="${i}" data-field="weight"
+          data-numpad="decimal" data-numpad-label="重量（${escapeHtml(rowUnit)}）"
           class="edit-set-input num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-10 focus:outline-none" />
-        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${editUnit}</span>
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${escapeHtml(rowUnit)}</span>
       </div>
       <span class="text-gray-600">×</span>
       <div class="flex-1 relative">
@@ -1630,7 +1787,7 @@ function updateEditUnitButtons() {
 
 function updateEditAddSetBtn() {
   const btn = document.getElementById('edit-add-set-btn');
-  if (editSets.length >= 5) btn.classList.add('opacity-40', 'pointer-events-none');
+  if (editSets.length >= MAX_SETS) btn.classList.add('opacity-40', 'pointer-events-none');
   else btn.classList.remove('opacity-40', 'pointer-events-none');
 }
 
@@ -1640,7 +1797,12 @@ document.getElementById('edit-save-btn').addEventListener('click', () => {
   if (!editingEntryId) return;
   const validSets = editSets
     .filter(s => s.weight !== '' && s.reps !== '')
-    .map(s => ({ weight: parseFloat(s.weight) || 0, unit: editUnit, reps: parseInt(s.reps) || 0 }))
+    .map(s => ({
+      weight: parseFloat(s.weight) || 0,
+      // 単位ボタンを押したときだけ全セットへ適用。押していなければ各セットの元の単位を残す
+      unit: editUnitTouched ? editUnit : (s.unit || editUnit),
+      reps: parseInt(s.reps) || 0,
+    }))
     .filter(s => s.weight > 0 && s.reps > 0);
   if (validSets.length === 0) { alert('有効なセットを1つ以上入力してください'); return; }
 
@@ -1658,8 +1820,8 @@ document.getElementById('edit-save-btn').addEventListener('click', () => {
 
   const entries = getEntries().map(e => {
     if (e.id !== editingEntryId) return e;
-    return { ...e, sets: validSets, muscleGroup: editMuscleGroup, memo: editMemo,
-             gymIn: editGymIn, gymOut: editGymOut };
+    return stampEntry({ ...e, sets: validSets, muscleGroup: editMuscleGroup, memo: editMemo,
+                        gymIn: editGymIn, gymOut: editGymOut });
   });
   saveEntries(entries);
   closeEditModal();
@@ -1669,19 +1831,21 @@ document.getElementById('edit-save-btn').addEventListener('click', () => {
 });
 
 document.getElementById('edit-add-set-btn').addEventListener('click', () => {
-  if (editSets.length >= 5) return;
-  editSets.push({ weight: '', reps: '' });
+  if (editSets.length >= MAX_SETS) return;
+  editSets.push({ weight: '', reps: '', unit: editUnit });
   renderEditSets();
   updateEditAddSetBtn();
 });
 
 document.getElementById('edit-unit-kg').addEventListener('click', () => {
   editUnit = 'kg';
+  editUnitTouched = true;
   updateEditUnitButtons();
   renderEditSets();
 });
 document.getElementById('edit-unit-lbs').addEventListener('click', () => {
   editUnit = 'lbs';
+  editUnitTouched = true;
   updateEditUnitButtons();
   renderEditSets();
 });
@@ -1773,6 +1937,37 @@ document.getElementById('export-btn').addEventListener('click', () => {
   document.getElementById('backup-modal').classList.add('hidden');
 });
 
+// インポートされた1エントリを検証・正規化する。壊れていれば null を返して取り込まない。
+function sanitizeImportedEntry(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) return null;
+  if (!Array.isArray(raw.sets)) return null;
+
+  const sets = raw.sets.map(s => {
+    if (!s || typeof s !== 'object') return null;
+    const weight = parseFloat(s.weight);
+    const reps   = parseInt(s.reps);
+    if (!isFinite(weight) || weight <= 0 || !isFinite(reps) || reps <= 0) return null;
+    return { weight, unit: s.unit === 'lbs' ? 'lbs' : 'kg', reps };
+  }).filter(Boolean);
+  if (sets.length === 0) return null;
+
+  const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : genId(),
+    date: raw.date,
+    exerciseId: str(raw.exerciseId, 64) || genId(),
+    exerciseName: str(raw.exerciseName, 200) || '(名称なし)',
+    muscleGroup: MUSCLE_COLORS[raw.muscleGroup] ? raw.muscleGroup : '',
+    sets,
+    memo: str(raw.memo, 2000),
+    gymIn: str(raw.gymIn, 5),
+    gymOut: str(raw.gymOut, 5),
+    createdAt: str(raw.createdAt, 40) || nowIso(),
+    updatedAt: str(raw.updatedAt, 40) || str(raw.createdAt, 40) || nowIso(),
+  };
+}
+
 document.getElementById('import-file').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -1780,22 +1975,40 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   reader.onload = (ev) => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!data.entries || !data.exercises) throw new Error('invalid');
-      if (!confirm(`${data.entries.length}件の記録をインポートします。現在のデータに追加されます。よろしいですか？`)) return;
+      if (!Array.isArray(data.entries) || !Array.isArray(data.exercises)) throw new Error('invalid');
+
+      // 取り込む前に形を検証する。バックアップは他人から受け取ることもあり、
+      // 検証なしで取り込むと壊れた値や細工された文字列がそのまま保存・同期される。
+      const cleanEntries = data.entries.map(sanitizeImportedEntry).filter(Boolean);
+      const cleanExercises = data.exercises
+        .filter(x => x && typeof x.name === 'string' && x.name.trim())
+        .map(x => ({
+          id: typeof x.id === 'string' && x.id ? x.id : genId(),
+          name: String(x.name).slice(0, 200),
+          muscleGroups: Array.isArray(x.muscleGroups)
+            ? x.muscleGroups.filter(m => MUSCLE_COLORS[m]) : [],
+        }));
+
+      const skipped = data.entries.length - cleanEntries.length;
+      const msg = `${cleanEntries.length}件の記録をインポートします。現在のデータに追加されます。`
+        + (skipped > 0 ? `\n\n（形式が不正な ${skipped} 件は取り込みません）` : '')
+        + '\n\nよろしいですか？';
+      if (!confirm(msg)) return;
+
       // Merge entries (avoid duplicates by id)
-      const existingIds = new Set(getEntries().map(e => e.id));
-      const newEntries = [...getEntries(), ...data.entries.filter(e => !existingIds.has(e.id))];
+      const existingIds = new Set(getEntriesRaw().map(e => e.id));
+      const newEntries = [...getEntries(), ...cleanEntries.filter(e => !existingIds.has(e.id))];
       saveEntries(newEntries);
       // Merge exercises
       const existingExNames = new Set(getExercises().map(e => e.name.toLowerCase()));
-      const newExercises = [...getExercises(), ...data.exercises.filter(e => !existingExNames.has(e.name.toLowerCase()))];
+      const newExercises = [...getExercises(), ...cleanExercises.filter(e => !existingExNames.has(e.name.toLowerCase()))];
       saveExercises(newExercises);
       // Merge gym times
       const mergedTimes = { ...data.gymTimes, ...getGymTimes() };
       saveGymTimes(mergedTimes);
       deduplicateExercises();      // インポートで重複が生じた場合も除去
       repairOrphanedExerciseIds(); // インポートエントリの孤立IDも修復
-      showToast(`${data.entries.length}件をインポートしました！`);
+      showToast(`${cleanEntries.length}件をインポートしました！`);
       document.getElementById('backup-modal').classList.add('hidden');
       switchTab('today');
     } catch {
@@ -1851,8 +2064,50 @@ function scheduleFsSync() {
   fsSyncTimer = setTimeout(pushToFirestore, 800);
 }
 
+// 保留中のデバウンスを即座に送り切る。
+// 保存直後にアプリを閉じると 800ms のタイマーが発火せず、その記録が
+// 一度もサーバに届かないまま次回の pull で消えていた。
+function flushFsSync() {
+  if (!fsUser || !fsDb || !fsSyncTimer) return;
+  clearTimeout(fsSyncTimer);
+  fsSyncTimer = null;
+  pushToFirestore();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushFsSync();
+});
+window.addEventListener('pagehide', flushFsSync);
+
 function fsUserRef(doc) {
   return fsDb.collection('users').doc(fsUser.uid).collection('data').doc(doc);
+}
+
+// ------------------------------------------------------------
+// マージ — id をキーに、新しい方を採用する
+// ------------------------------------------------------------
+// 以前は受信した配列でローカルを丸ごと置き換えていたため、
+//   ・オフラインで記録 → 次回サインイン時の pull でその日の記録が消える
+//   ・古い配列を持った2台目が保存すると、新しい記録が巻き戻る
+// という消失が起きていた。id 単位でマージすれば、どちらの側にしか無い記録も残る。
+function entryStamp(e) { return e.updatedAt || e.createdAt || ''; }
+
+function mergeEntries(localRaw, remoteRaw) {
+  const byId = new Map();
+  for (const e of localRaw || []) {
+    if (e && e.id) byId.set(e.id, e);
+  }
+  for (const r of remoteRaw || []) {
+    if (!r || !r.id) continue;
+    const l = byId.get(r.id);
+    // タイムスタンプが無い旧データ同士は、ローカルを優先して不用意な巻き戻しを避ける
+    if (!l || entryStamp(r) > entryStamp(l)) byId.set(r.id, r);
+  }
+  return [...byId.values()];
+}
+
+function sameItems(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
 }
 
 async function pullFromFirestore() {
@@ -1862,10 +2117,16 @@ async function pullFromFirestore() {
       fsUserRef('exercises').get(),
       fsUserRef('settings').get(),
     ]);
-    let fsHadEntries = false;
+    let needPush = false;
     if (eSnap.exists && eSnap.data().items) {
-      save(KEYS.entries, eSnap.data().items);
-      fsHadEntries = true;
+      const remote = eSnap.data().items;
+      const merged = mergeEntries(getEntriesRaw(), remote);
+      saveEntriesRaw(merged);
+      // ローカルにしか無い記録があった場合は、こちらから送り返す
+      if (!sameItems(merged, remote)) needPush = true;
+    } else if (getEntries().length > 0) {
+      // Firestore が空でローカルにデータがある（初回ログイン等）
+      needPush = true;
     }
     if (xSnap.exists && xSnap.data().items) save(KEYS.exercises, xSnap.data().items);
     if (sSnap.exists) {
@@ -1873,11 +2134,11 @@ async function pullFromFirestore() {
       if (s.defaultUnit) save(KEYS.defaultUnit, s.defaultUnit);
       if (s.gymTimes)    save(KEYS.gymTime,     s.gymTimes);
     }
-    // 初回ログイン: Firestoreが空でもローカルにデータがある場合は即プッシュ
-    if (!fsHadEntries && getEntries().length > 0) {
-      await pushToFirestore();
-    }
-  } catch(e) { console.warn('Firestore pull failed:', e); }
+    if (needPush) await pushToFirestore();
+  } catch(e) {
+    console.warn('Firestore pull failed:', e);
+    showSyncError('クラウドからの読み込みに失敗しました');
+  }
 }
 
 async function pushToFirestore() {
@@ -1886,11 +2147,17 @@ async function pushToFirestore() {
   try {
     const ts = firebase.firestore.FieldValue.serverTimestamp();
     await Promise.all([
-      fsUserRef('entries').set({ items: getEntries(), updatedAt: ts }),
+      // tombstone も送る（削除を他端末へ伝えるため）
+      fsUserRef('entries').set({ items: getEntriesRaw(), updatedAt: ts }),
       fsUserRef('exercises').set({ items: getExercises(), updatedAt: ts }),
       fsUserRef('settings').set({ defaultUnit: getDefaultUnit(), gymTimes: getGymTimes(), updatedAt: ts }),
     ]);
-  } catch(e) { console.warn('Firestore push failed:', e); }
+    clearSyncError();
+  } catch(e) {
+    console.warn('Firestore push failed:', e);
+    // 静かに失敗させない。ここが無言だと、上限超過や権限エラーに気づけない
+    showSyncError('クラウドへの保存に失敗しました。バックアップを取ってください');
+  }
   showSyncIndicator(false);
 }
 
@@ -1901,7 +2168,10 @@ function setupRealtimeListener() {
     if (snap.metadata.hasPendingWrites || !snap.exists) return;
     const items = snap.data().items;
     if (!items) return;
-    save(KEYS.entries, items);
+    const before = getEntriesRaw();
+    const merged = mergeEntries(before, items);
+    if (sameItems(before, merged)) return;   // 変化なしなら再描画もしない
+    saveEntriesRaw(merged);
     if (currentTab === 'today')   renderToday();
     if (currentTab === 'history') renderHistory();
   });
@@ -1910,6 +2180,20 @@ function setupRealtimeListener() {
 function showSyncIndicator(on) {
   document.getElementById('sync-indicator').classList.toggle('hidden', !on);
 }
+
+function showSyncError(msg) {
+  const bar = document.getElementById('sync-error');
+  if (!bar) return;
+  document.getElementById('sync-error-msg').textContent = msg;
+  bar.classList.remove('hidden');
+}
+
+function clearSyncError() {
+  const bar = document.getElementById('sync-error');
+  if (bar) bar.classList.add('hidden');
+}
+
+document.getElementById('sync-error-close')?.addEventListener('click', clearSyncError);
 
 function updateMenuUserSection(user) {
   const userSection  = document.getElementById('menu-user-section');

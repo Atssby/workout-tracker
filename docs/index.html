@@ -152,6 +152,15 @@
     </div>
   </div>
 
+  <!-- 同期エラーバー（失敗を黙って握りつぶさないための表示） -->
+  <div id="sync-error" class="hidden flex-shrink-0 bg-red-900 border-b border-red-700 px-4 py-2 flex items-center justify-between gap-3">
+    <span class="flex items-center gap-2 min-w-0">
+      <svg class="w-4 h-4 flex-shrink-0 text-red-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span id="sync-error-msg" class="text-xs text-red-100 leading-snug"></span>
+    </span>
+    <button id="sync-error-close" class="text-red-300 text-lg leading-none px-2 py-1 flex-shrink-0" aria-label="閉じる">×</button>
+  </div>
+
   <!-- Menu Modal -->
   <div id="backup-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-60">
     <div class="w-full max-w-md bg-gray-900 rounded-t-3xl p-6 pb-10 border-t border-gray-700">

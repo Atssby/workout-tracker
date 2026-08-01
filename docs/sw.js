@@ -1,4 +1,4 @@
-const CACHE_NAME = 'workout-tracker-v25';
+const CACHE_NAME = 'workout-tracker-v26';
 const ASSETS = [
   './',
   './index.html',
@@ -35,7 +35,13 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => caches.match('./'));
+      }).catch(() => {
+        // ページ遷移のときだけ index.html を返す。
+        // 以前は種類を問わず index.html を返していたため、オフライン時に
+        // <script src> が HTML 文書を JavaScript として受け取り、パースエラーになっていた。
+        if (event.request.mode === 'navigate') return caches.match('./');
+        return Response.error();
+      });
     })
   );
 });
