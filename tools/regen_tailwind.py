@@ -51,7 +51,9 @@ DOCS = ROOT / "docs"
 TAILWIND_CONFIG = """tailwind.config = { darkMode: 'class', theme: { extend: { colors: { indigo: {
   400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } } } } }"""
 
-TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9:_\-\./\[\]%()#,]*")
+# 先頭の "-" を許すこと。Tailwind の負値ユーティリティ（-mx-4 / -translate-x-1/2 など）は
+# ハイフン始まりで、これを弾くと「そのクラスだけスタイルが当たらない」形で静かに壊れる。
+TOKEN_RE = re.compile(r"-?[A-Za-z][A-Za-z0-9:_\-\./\[\]%()#,]*")
 SKIP = ("http", "./", "https", "firebase", ".js", ".json", ".png", ".svg", ".html")
 
 
@@ -83,7 +85,89 @@ def collect_tokens() -> list:
     return sorted(t for t in tokens if not any(b in t for b in SKIP))
 
 
+def used_classes() -> set:
+    """class 属性・className・classList に実際に現れるクラス名だけを集める。
+
+    生成漏れの検査に使う。collect_tokens() より厳しく、文字列リテラル全体は見ない。
+    """
+    out = set()
+
+    def add(chunk: str) -> None:
+        for t in chunk.split():
+            t = t.strip("\"'`;,()=")
+            if t and "${" not in t:
+                out.add(t)
+
+    for name in ("index.html", "app.js"):
+        src = (DOCS / name).read_text(encoding="utf-8")
+        for m in re.finditer(r'class=\\?"([^"]*)\\?"', src):
+            add(m.group(1))
+        for m in re.finditer(r"className\s*=\s*[`'\"]([^`'\"]*)[`'\"]", src):
+            add(m.group(1))
+        for m in re.finditer(r"classList\.(?:add|remove|toggle|replace)\(([^)]*)\)", src):
+            add(m.group(1).replace(",", " ").replace("'", " ").replace('"', " "))
+    return out
+
+
+# アプリ独自のクラス（Tailwind ではないので CSS に無くて当然）
+OWN_CLASS_RE = re.compile(
+    r"^(page|active|dark|light-mode|is-fresh|np-key|num-input|numpad-active|numpad-open|"
+    r"safe-top|safe-bottom|tab-bar|tab-btn|recharts-wrapper|toggle-icon|set-row|set-label|"
+    r"set-weight|set-reps|sets-list|suggestion-card|exercise-name|entry-memo|history-view-btn|"
+    r"muscle-btn|edit-muscle-btn|today-muscle-btn|save-card-btn|add-set-btn|remove-set-btn|"
+    r"edit-saved-btn|edit-set-input|rest-add-btn|edit-entry-btn|delete-entry-btn|"
+    r"remove-edit-set-btn)$"
+)
+
+
+def looks_like_tailwind(t: str) -> bool:
+    """Tailwind のクラス名になりうる形かどうか。
+
+    class 属性の中には三項演算子の変数名（isDark）やプロパティ参照（numpad.fresh）が
+    混ざるので、それらを除いて誤検知を減らす。
+    - Tailwind のクラスは常に小文字（camelCase は JS の識別子）
+    - ドットは 2.5 のように数字に挟まれる形しか出てこない
+    """
+    if any(c.isupper() for c in t):
+        return False
+    for i, c in enumerate(t):
+        if c == ".":
+            prev_ok = i > 0 and t[i - 1].isdigit()
+            next_ok = i + 1 < len(t) and t[i + 1].isdigit()
+            if not (prev_ok and next_ok):
+                return False
+    return True
+
+
+def check() -> int:
+    """使われているのに tailwind.css に無いクラスを報告する。終了コード1で失敗。"""
+    css = (DOCS / "tailwind.css").read_text(encoding="utf-8")
+
+    def selector(t: str) -> str:
+        return "." + re.sub(r"([:\./\[\]%()#,])", r"\\\1", t)
+
+    missing = []
+    for t in sorted(used_classes()):
+        if OWN_CLASS_RE.match(t) or not TOKEN_RE.fullmatch(t) or not looks_like_tailwind(t):
+            continue
+        if selector(t) not in css:
+            missing.append(t)
+
+    if missing:
+        print(f"NG: tailwind.css に無いクラスが {len(missing)} 件あります")
+        for m in missing:
+            print("   -", m)
+        print("\n再生成してください: python3 tools/regen_tailwind.py")
+        return 1
+    print("OK: 使われているクラスはすべて tailwind.css に含まれています")
+    return 0
+
+
 def main() -> None:
+    import sys
+    if "--check" in sys.argv:
+        raise SystemExit(check())
+
     tokens = collect_tokens()
     outdir = pathlib.Path(tempfile.gettempdir()) / "twgen"
     outdir.mkdir(parents=True, exist_ok=True)
