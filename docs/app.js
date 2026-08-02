@@ -140,18 +140,29 @@ function entryMaxKg(sets) {
    ※ 数値は WCAG 2.2 SC 1.4.3（通常文字 4.5:1）で実測して決定 */
 const MUSCLE_COLORS = {
   //                                                                           ダーク用テキスト  ライト用テキスト（濃色）
-  '胸':  { activeBg: '#dc2626', border: '#dc2626', sel: '#dc2626', onDark: '#e14545', onLight: '#ca2121', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5', tagTextLight: '#991b1b' },
-  '背中': { activeBg: '#2563eb', border: '#2563eb', sel: '#2563eb', onDark: '#467aee', onLight: '#1c5cea', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd', tagTextLight: '#1e40af' },
-  '脚':  { activeBg: '#16a34a', border: '#16a34a', sel: '#12863d', onDark: '#16a34a', onLight: '#117b38', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac', tagTextLight: '#14532d' },
-  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', sel: '#9d6b03', onDark: '#ca8a04', onLight: '#906303', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a', tagTextLight: '#78350f' },
-  '腕':  { activeBg: '#9333ea', border: '#9333ea', sel: '#9333ea', onDark: '#a556ee', onLight: '#912eea', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe', tagTextLight: '#581c87' },
-  '腹':  { activeBg: '#0d9488', border: '#0d9488', sel: '#0c8479', onDark: '#0d9488', onLight: '#0b786e', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4', tagTextLight: '#134e4a' },
+  '胸':  { activeBg: '#dc2626', border: '#dc2626', sel: '#dc2626', onDark: '#e14545', onLight: '#bf1f1f', tagBg: 'rgba(220,38,38,0.18)', tagBorder: '#dc2626', tagText: '#fca5a5', tagTextLight: '#991b1b' },
+  '背中': { activeBg: '#2563eb', border: '#2563eb', sel: '#2563eb', onDark: '#467aee', onLight: '#1556e5', tagBg: 'rgba(37,99,235,0.18)',  tagBorder: '#2563eb', tagText: '#93c5fd', tagTextLight: '#1e40af' },
+  '脚':  { activeBg: '#16a34a', border: '#16a34a', sel: '#12863d', onDark: '#16a34a', onLight: '#107435', tagBg: 'rgba(22,163,74,0.18)',  tagBorder: '#16a34a', tagText: '#86efac', tagTextLight: '#14532d' },
+  '肩':  { activeBg: '#ca8a04', border: '#ca8a04', sel: '#9d6b03', onDark: '#ca8a04', onLight: '#8a5e03', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a', tagTextLight: '#78350f' },
+  '腕':  { activeBg: '#9333ea', border: '#9333ea', sel: '#9333ea', onDark: '#a556ee', onLight: '#8921e8', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe', tagTextLight: '#581c87' },
+  '腹':  { activeBg: '#0d9488', border: '#0d9488', sel: '#0c8479', onDark: '#0d9488', onLight: '#0a7269', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4', tagTextLight: '#134e4a' },
 };
 
 // 明るいテーマかどうか（テーマ依存の色を選ぶときに使う）
 function isLightTheme() {
   return document.body.classList.contains('light-mode') ||
          document.documentElement.getAttribute('data-theme') === 'light';
+}
+
+// グラフの描画色。以前はダーク前提で決め打ちしていたため、ライトモードでは
+// 罫線が白背景に白（1.00:1）、軸ラベルが 1.85:1 で読めなくなっていた。
+function chartPalette() {
+  const light = isLightTheme();
+  return {
+    grid:  light ? 'rgba(15,23,42,0.16)' : 'rgba(255,255,255,0.16)',
+    label: light ? '#475569'             : '#9ca3af',   // どちらも背景に対し 4.5:1 以上
+    band:  light ? 'rgba(15,23,42,0.06)' : 'rgba(148,163,184,0.10)',
+  };
 }
 
 // 未選択の部位ボタン／ピルの文字色
@@ -218,7 +229,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     const active = btn.dataset.tab === tab;
     btn.classList.toggle('text-indigo-400', active);
-    btn.classList.toggle('text-gray-500', !active);
+    btn.classList.toggle('text-gray-400', !active);
   });
 
   if (tab === 'today') renderToday();
@@ -284,9 +295,9 @@ function renderTodayMuscleBtns() {
     const m = btn.dataset.todayMuscle;
     const c = MUSCLE_COLORS[m];
     if (m === todaySelectedMuscle) {
-      btn.style.cssText = `background-color:${c.activeBg};border-color:${c.activeBg};color:#fff;`;
+      btn.style.cssText = `background-color:${c.sel};border-color:${c.sel};color:#fff;`;
     } else {
-      btn.style.cssText = `background-color:${c.activeBg}22;border-color:${c.border};color:${c.activeBg};`;
+      btn.style.cssText = `background-color:${c.activeBg}22;border-color:${c.border};color:${muscleIdleText(c)};`;
     }
   });
 }
@@ -300,7 +311,7 @@ function renderTodaySuggestions(muscleGroup) {
 
   const suggestions = getSuggestionsForMuscle(muscleGroup);
   if (suggestions.length === 0) {
-    container.innerHTML = `<div class="text-center py-8 text-gray-600 text-sm">この部位の記録がまだありません</div>`;
+    container.innerHTML = `<div class="text-center py-8 text-gray-400 text-sm">この部位の記録がまだありません</div>`;
     return;
   }
 
@@ -326,8 +337,8 @@ function renderTodaySuggestions(muscleGroup) {
       </div>
       <div class="sets-list px-4 pb-2 space-y-1">${setsHtml}</div>
       <div class="px-4 pb-3 flex items-center gap-4">
-        <button class="add-set-btn text-sm text-indigo-400 font-semibold px-3 py-2 -ml-3 rounded-lg">＋ セット追加</button>
-        <button class="edit-saved-btn hidden text-sm text-indigo-400 font-semibold px-3 py-2 -ml-3 rounded-lg">編集</button>
+        <button class="add-set-btn text-sm text-indigo-400 font-semibold px-3 -ml-3 rounded-lg" style="min-height:44px">＋ セット追加</button>
+        <button class="edit-saved-btn hidden text-sm text-indigo-400 font-semibold px-3 -ml-3 rounded-lg" style="min-height:44px">編集</button>
       </div>`;
     // 種目名はユーザー入力なので innerHTML に混ぜず textContent で入れる
     card.querySelector('.exercise-name').textContent = entry.exerciseName;
@@ -340,7 +351,7 @@ function renderTodaySuggestions(muscleGroup) {
       if (card.dataset.savedEntryId) openEditModal(card.dataset.savedEntryId);
     });
     card.querySelectorAll('.remove-set-btn').forEach(btn =>
-      btn.addEventListener('click', () => { closeNumpad(); btn.closest('.set-row').remove(); renumberTodaySets(card); })
+      btn.addEventListener('click', () => removeTodaySetRow(card, btn.closest('.set-row')))
     );
 
     // 保存済みなら、再描画後も「保存済み」の見た目を復元する。
@@ -377,7 +388,7 @@ function buildSetRowHtml(idx, weight, unit, reps) {
   const w = escapeHtml(weight), u = escapeHtml(unit), r = escapeHtml(reps);
   return `
     <div class="set-row flex items-center gap-2 py-1.5" data-idx="${idx}">
-      <span class="set-label text-xs text-gray-500 w-12 flex-shrink-0">セット${idx + 1}</span>
+      <span class="set-label text-xs text-gray-400 w-12 flex-shrink-0">セット${idx + 1}</span>
       <input type="text" readonly inputmode="none" value="${w}"
         data-numpad="decimal" data-numpad-label="重量（${u}）"
         class="set-weight num-input w-20 bg-gray-800 border border-gray-700 rounded-xl px-2 py-3 text-white text-center focus:outline-none">
@@ -386,7 +397,7 @@ function buildSetRowHtml(idx, weight, unit, reps) {
         data-numpad="numeric" data-numpad-label="回数"
         class="set-reps num-input w-16 bg-gray-800 border border-gray-700 rounded-xl px-2 py-3 text-white text-center focus:outline-none">
       <span class="text-xs text-gray-400">回</span>
-      <button class="remove-set-btn text-gray-600 text-2xl leading-none ml-auto px-3 py-1">×</button>
+      <button class="remove-set-btn text-gray-400 hover:text-red-400 text-2xl leading-none ml-auto rounded-lg" style="width:44px;height:44px;flex-shrink:0;line-height:44px;text-align:center;padding:0" aria-label="セット${idx + 1}を削除">×</button>
     </div>`;
 }
 
@@ -403,10 +414,23 @@ function addSetToTodayCard(card) {
   const tmp = document.createElement('div');
   tmp.innerHTML = buildSetRowHtml(idx, lastWeight, unit, lastReps);
   const newRow = tmp.firstElementChild;
-  newRow.querySelector('.remove-set-btn').addEventListener('click', () => {
-    closeNumpad(); newRow.remove(); renumberTodaySets(card);
-  });
+  newRow.querySelector('.remove-set-btn').addEventListener('click', () => removeTodaySetRow(card, newRow));
   list.appendChild(newRow);
+}
+
+// セット行の削除。取り消せるようにしてから消す（汗で手が滑る前提のジムで、
+// 取り消せない破壊的操作をいちばん小さいボタンに置かないため）
+function removeTodaySetRow(card, row) {
+  closeNumpad();
+  const list = row.parentElement;
+  const next = row.nextElementSibling;
+  row.remove();
+  renumberTodaySets(card);
+  showToast('セットを削除しました', 5000, { label: '元に戻す', fn: () => {
+    if (next && next.parentElement === list) list.insertBefore(row, next);
+    else list.appendChild(row);
+    renumberTodaySets(card);
+  }});
 }
 
 function renumberTodaySets(card) {
@@ -525,9 +549,9 @@ function buildEntryCard(entry, showActions, onDelete) {
 
   const setsHtml = entry.sets.map((s, i) =>
     `<div class="flex items-center gap-3 py-1">
-      <span class="text-xs text-gray-600 w-12">セット${i + 1}</span>
+      <span class="text-xs text-gray-400 w-12">セット${i + 1}</span>
       <span class="text-sm font-semibold text-white">${escapeHtml(s.weight)}${escapeHtml(s.unit || 'kg')}</span>
-      <span class="text-xs text-gray-500">×</span>
+      <span class="text-xs text-gray-400">×</span>
       <span class="text-sm font-semibold text-white">${escapeHtml(s.reps)}回</span>
     </div>`
   ).join('');
@@ -538,23 +562,23 @@ function buildEntryCard(entry, showActions, onDelete) {
         <div class="flex items-center flex-wrap gap-1">
           <span class="exercise-name text-base font-bold text-white"></span>${muscleTagHtml(entry.muscleGroup)}
         </div>
-        <div class="text-xs text-gray-500 mt-0.5">${entry.sets.length}セット${mixed ? ' ・<span class="text-yellow-500">単位混在</span>' : ''}</div>
+        <div class="text-xs text-gray-400 mt-0.5">${entry.sets.length}セット${mixed ? ' ・<span class="text-yellow-500">単位混在</span>' : ''}</div>
       </div>
       <div class="text-right ml-3">
-        <div class="text-xs text-gray-500">最大</div>
+        <div class="text-xs text-gray-400">最大</div>
         <div class="text-sm font-bold text-indigo-400">${formatKg(maxKg, dispUnit)}${dispUnit}</div>
       </div>
     </div>
     <div class="border-t border-gray-800 pt-2">${setsHtml}</div>
     <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-800">
-      <span class="text-xs text-gray-600">総ボリューム: <span class="text-gray-400 font-semibold">${formatKg(totalVolKg, dispUnit)}${dispUnit}</span></span>
+      <span class="text-xs text-gray-400">総ボリューム: <span class="text-gray-400 font-semibold">${formatKg(totalVolKg, dispUnit)}${dispUnit}</span></span>
       ${showActions ? `
         <div class="flex items-center gap-3">
           <button class="text-sm text-indigo-400 font-semibold edit-entry-btn px-3 py-3 rounded-lg">編集</button>
           <button class="text-sm text-red-500 font-semibold delete-entry-btn px-3 py-3 -mr-2 rounded-lg">削除</button>
         </div>` : ''}
     </div>
-    ${entry.memo ? '<div class="entry-memo mt-2 pt-2 border-t border-gray-800 text-xs text-gray-500 leading-relaxed whitespace-pre-wrap"></div>' : ''}
+    ${entry.memo ? '<div class="entry-memo mt-2 pt-2 border-t border-gray-800 text-xs text-gray-400 leading-relaxed whitespace-pre-wrap"></div>' : ''}
   `;
   // 種目名・メモはユーザー入力。innerHTML に混ぜず textContent で入れる
   card.querySelector('.exercise-name').textContent = entry.exerciseName || '';
@@ -639,8 +663,8 @@ function updateMuscleBtns(selector, selected) {
     btn.className = `${cls} ${base}`;
     const c = MUSCLE_COLORS[btn.dataset.muscle];
     if (active && c) {
-      btn.style.backgroundColor = c.activeBg;
-      btn.style.borderColor     = c.border;
+      btn.style.backgroundColor = c.sel;
+      btn.style.borderColor     = c.sel;
       btn.style.color           = '#ffffff';
     } else {
       btn.style.backgroundColor = '';
@@ -720,7 +744,7 @@ function renderSuggestions(muscleGroup) {
 
   // パネルのヘッダー色を部位色に合わせる
   const mc = MUSCLE_COLORS[muscleGroup];
-  if (mc) label.style.color = mc.activeBg;
+  if (mc) label.style.color = muscleIdleText(mc);
   else label.style.color = '';
 
   list.innerHTML = '';
@@ -739,7 +763,7 @@ function renderSuggestions(muscleGroup) {
     card.innerHTML = `
       <div class="flex items-center justify-between gap-2">
         <span class="font-semibold text-sm text-white leading-tight">${escapeHtml(entry.exerciseName)}</span>
-        <span class="text-xs text-gray-500 flex-shrink-0">${dateStr}</span>
+        <span class="text-xs text-gray-400 flex-shrink-0">${dateStr}</span>
       </div>
       <div class="text-xs text-gray-400 mt-0.5 leading-relaxed">${escapeHtml(setsStr)}</div>
     `;
@@ -803,7 +827,7 @@ function renderSets() {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2';
     row.innerHTML = `
-      <span class="text-xs text-gray-500 w-14 flex-shrink-0">セット${i + 1}</span>
+      <span class="text-xs text-gray-400 w-14 flex-shrink-0">セット${i + 1}</span>
       <div class="flex-1 relative">
         <input
           type="text"
@@ -817,9 +841,9 @@ function renderSets() {
           data-numpad-label="重量（${currentUnit}）"
           class="set-weight num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-10 focus:outline-none"
         />
-        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${currentUnit}</span>
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">${currentUnit}</span>
       </div>
-      <span class="text-gray-600">×</span>
+      <span class="text-gray-400">×</span>
       <div class="flex-1 relative">
         <input
           type="text"
@@ -833,9 +857,9 @@ function renderSets() {
           data-numpad-label="回数"
           class="set-reps num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-8 focus:outline-none"
         />
-        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">回</span>
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">回</span>
       </div>
-      ${sets.length > 1 ? `<button class="remove-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-2xl leading-none transition-colors px-2 py-2" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
+      ${sets.length > 1 ? `<button class="remove-set-btn flex-shrink-0 text-gray-400 hover:text-red-400 text-2xl leading-none transition-colors rounded-lg" style="width:44px;height:44px;flex-shrink:0;line-height:44px;text-align:center;padding:0" data-set="${i}" aria-label="セット${i + 1}を削除">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
     `;
     container.appendChild(row);
   });
@@ -852,8 +876,13 @@ function renderSets() {
     btn.addEventListener('click', () => {
       closeNumpad();
       const idx = parseInt(btn.dataset.set);
+      const removed = sets[idx];
       sets.splice(idx, 1);
       renderSets();
+      showToast('セットを削除しました', 5000, { label: '元に戻す', fn: () => {
+        sets.splice(idx, 0, removed);
+        renderSets();
+      }});
     });
   });
 }
@@ -931,7 +960,7 @@ function showExerciseDropdown(query) {
   // Section header when muscle filter is active
   if (currentMuscleGroup && muscleMatches.length > 0) {
     const label = document.createElement('div');
-    label.className = 'px-4 pt-2 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider';
+    label.className = 'px-4 pt-2 pb-1 text-xs font-bold text-gray-400 uppercase tracking-wider';
     label.textContent = `${currentMuscleGroup}のトレーニング`;
     exerciseDropdown.appendChild(label);
   }
@@ -952,7 +981,7 @@ function showExerciseDropdown(query) {
   // Divider between muscle matches and others (only when mixing)
   if (currentMuscleGroup && muscleMatches.length > 0 && otherMatches.length > 0) {
     const div = document.createElement('div');
-    div.className = 'px-4 pt-2 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider border-t border-gray-700 mt-1';
+    div.className = 'px-4 pt-2 pb-1 text-xs font-bold text-gray-400 uppercase tracking-wider border-t border-gray-700 mt-1';
     div.textContent = 'その他';
     exerciseDropdown.appendChild(div);
   }
@@ -1047,12 +1076,28 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
   }
 });
 
-function showToast(msg, ms) {
+// action = { label, fn } を渡すと「元に戻す」等のボタンを出す。
+// ボタンは 44px 以上（WCAG 2.2 SC 2.5.5 / Material 48dp）。
+function showToast(msg, ms, action) {
   const toast = document.createElement('div');
-  toast.className = 'fixed top-16 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg z-50 transition-opacity max-w-xs text-center';
-  toast.textContent = msg;
+  toast.className = 'fixed top-16 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold rounded-full shadow-lg z-50 transition-opacity max-w-xs';
+  toast.style.cssText += ';display:flex;align-items:center;gap:8px;padding:' + (action ? '4px 4px 4px 20px' : '10px 20px');
+  const label = document.createElement('span');
+  label.textContent = msg;
+  toast.appendChild(label);
+  let timer;
+  const close = () => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); };
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = action.label;
+    btn.className = 'font-bold rounded-full';
+    btn.style.cssText = 'min-width:44px;min-height:44px;padding:0 14px;flex-shrink:0;background:rgba(255,255,255,.22);color:#fff';
+    btn.addEventListener('click', () => { clearTimeout(timer); close(); action.fn(); });
+    toast.appendChild(btn);
+  }
   document.body.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, ms || 2000);
+  timer = setTimeout(close, ms || 2000);
 }
 
 // ============================================================
@@ -1062,9 +1107,9 @@ function showToast(msg, ms) {
 function renderHistory() {
   // Update toggle button styles
   document.getElementById('history-list-btn').className =
-    `history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${historyViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
+    `history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${historyViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`;
   document.getElementById('history-cal-btn').className =
-    `history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${historyViewMode === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-500'}`;
+    `history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${historyViewMode === 'calendar' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`;
 
   renderHistoryFilters();
 
@@ -1089,8 +1134,8 @@ function renderHistoryFilters() {
     const isActive = historyMuscleFilter === m;
     if (isActive) {
       const c = MUSCLE_COLORS[m];
-      btn.style.backgroundColor = c ? c.activeBg : '#4f46e5';
-      btn.style.borderColor     = c ? c.border    : '#4f46e5';
+      btn.style.backgroundColor = c ? c.sel : '#4f46e5';
+      btn.style.borderColor     = c ? c.sel : '#4f46e5';
       btn.style.color           = '#ffffff';
     } else {
       btn.classList.add('bg-gray-900', 'border-gray-800', 'text-gray-400');
@@ -1211,9 +1256,9 @@ function renderHistoryList() {
         <div class="flex items-center flex-wrap gap-1.5">
           <span class="text-sm font-bold text-white">${formatDate(date)}</span>${muscleTagsHtml}
         </div>
-        <div class="text-xs text-gray-500 mt-0.5">${dateEntries.length}種目 ${gt.in ? `• ${gt.in}〜${gt.out || '?'}` : ''}</div>
+        <div class="text-xs text-gray-400 mt-0.5">${dateEntries.length}種目 ${gt.in ? `• ${gt.in}〜${gt.out || '?'}` : ''}</div>
       </div>
-      <svg class="toggle-icon w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg class="toggle-icon w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="6 9 12 15 18 9"/>
       </svg>
     `;
@@ -1262,9 +1307,9 @@ function renderCalendarView() {
   const nav = document.createElement('div');
   nav.className = 'flex items-center justify-between mb-4 px-1';
   nav.innerHTML = `
-    <button id="cal-prev" class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors text-xl font-light">‹</button>
+    <button id="cal-prev" class="flex items-center justify-center rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors text-xl font-light" style="width:44px;height:44px" aria-label="前の月">‹</button>
     <span class="text-base font-bold text-white">${calendarYear}年${monthNames[calendarMonth]}</span>
-    <button id="cal-next" class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors text-xl font-light">›</button>
+    <button id="cal-next" class="flex items-center justify-center rounded-full bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors text-xl font-light" style="width:44px;height:44px" aria-label="次の月">›</button>
   `;
   cal.appendChild(nav);
 
@@ -1274,7 +1319,7 @@ function renderCalendarView() {
   headerRow.className = 'grid grid-cols-7 mb-2';
   dayLabels.forEach((d, i) => {
     const cell = document.createElement('div');
-    cell.className = `text-center text-xs font-semibold py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'}`;
+    cell.className = `text-center text-xs font-semibold py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'}`;
     cell.textContent = d;
     headerRow.appendChild(cell);
   });
@@ -1318,7 +1363,7 @@ function renderCalendarView() {
     } else if (isFuture) {
       numCls += ' text-gray-700';
     } else {
-      numCls += ' text-gray-500';
+      numCls += ' text-gray-400';
     }
     num.className = numCls;
     num.textContent = d;
@@ -1366,7 +1411,7 @@ function renderCalendarView() {
   const summary = document.createElement('div');
   summary.className = 'mt-3 pt-3 border-t border-gray-800 flex items-center justify-between';
   summary.innerHTML = `
-    <span class="text-xs text-gray-600">今月のトレーニング</span>
+    <span class="text-xs text-gray-400">今月のトレーニング</span>
     <span class="text-xs font-bold text-indigo-400">${monthDates.length}日</span>
   `;
   cal.appendChild(summary);
@@ -1386,7 +1431,7 @@ function renderCalendarView() {
     dayHeader.innerHTML = `
       <span class="text-sm font-bold text-white">${formatDate(calendarSelectedDate)}</span>
       ${muscles.map(m => muscleTagHtml(m)).join('')}
-      <span class="text-xs text-gray-600 ml-auto">${selEntries.length}種目${gt.in ? ` • ${gt.in}〜${gt.out || '?'}` : ''}</span>
+      <span class="text-xs text-gray-400 ml-auto">${selEntries.length}種目${gt.in ? ` • ${gt.in}〜${gt.out || '?'}` : ''}</span>
     `;
     daySection.appendChild(dayHeader);
 
@@ -1484,8 +1529,8 @@ function renderGraphMusclePills() {
     const isActive = graphMuscleFilter === m;
     if (isActive) {
       const c = MUSCLE_COLORS[m];
-      btn.style.backgroundColor = c ? c.activeBg : '#4f46e5';
-      btn.style.borderColor     = c ? c.border    : '#4f46e5';
+      btn.style.backgroundColor = c ? c.sel : '#4f46e5';
+      btn.style.borderColor     = c ? c.sel : '#4f46e5';
       btn.style.color           = '#ffffff';
     } else {
       btn.classList.add('bg-gray-900', 'border-gray-800', 'text-gray-400');
@@ -1603,15 +1648,15 @@ function renderGraph() {
 
   statsEl.innerHTML = `
     <div class="bg-gray-800 rounded-xl p-3 text-center">
-      <div class="text-xs text-gray-500 mb-1">最大</div>
-      <div class="text-sm font-bold text-indigo-400">${maxVal.toFixed(1)}<span class="text-xs text-gray-500">${dispUnit}</span></div>
+      <div class="text-xs text-gray-400 mb-1">最大</div>
+      <div class="text-sm font-bold text-indigo-400">${maxVal.toFixed(1)}<span class="text-xs text-gray-400">${dispUnit}</span></div>
     </div>
     <div class="bg-gray-800 rounded-xl p-3 text-center">
-      <div class="text-xs text-gray-500 mb-1">最新</div>
-      <div class="text-sm font-bold text-white">${latestVal.toFixed(1)}<span class="text-xs text-gray-500">${dispUnit}</span></div>
+      <div class="text-xs text-gray-400 mb-1">最新</div>
+      <div class="text-sm font-bold text-white">${latestVal.toFixed(1)}<span class="text-xs text-gray-400">${dispUnit}</span></div>
     </div>
     <div class="bg-gray-800 rounded-xl p-3 text-center">
-      <div class="text-xs text-gray-500 mb-1">増減</div>
+      <div class="text-xs text-gray-400 mb-1">増減</div>
       <div class="text-sm font-bold ${diff >= 0 ? 'text-green-400' : 'text-red-400'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}<span class="text-xs opacity-75">${dispUnit}</span></div>
     </div>
   `;
@@ -1642,11 +1687,19 @@ function drawLineChart(canvas, dataPoints) {
   const maxV = Math.max(...values);
   const range = maxV - minV || 1;
 
-  const xScale = (i) => padL + (i / Math.max(dataPoints.length - 1, 1)) * chartW;
+  // X軸は「日付」で取る。以前はインデックスの等間隔で描いていたため、
+  // 1日空きも30日空きも同じ幅になり、中断期間や停滞期がグラフから消えていた。
+  const times = dataPoints.map(p => new Date(p.date + 'T00:00:00').getTime());
+  const tMin = times[0], tMax = times[times.length - 1];
+  const tSpan = (tMax - tMin) || 1;
+  const xScale = (i) => dataPoints.length === 1
+    ? padL + chartW / 2
+    : padL + ((times[i] - tMin) / tSpan) * chartW;
   const yScale = (v) => padT + chartH - ((v - minV) / range) * chartH;
 
   // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  const pal = chartPalette();
+  ctx.strokeStyle = pal.grid;
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = padT + (i / 4) * chartH;
@@ -1657,7 +1710,7 @@ function drawLineChart(canvas, dataPoints) {
 
     // Y labels
     const val = maxV - (i / 4) * range;
-    ctx.fillStyle = 'rgba(156,163,175,0.7)';
+    ctx.fillStyle = pal.label;
     ctx.font = `${10 * dpr / dpr}px -apple-system, sans-serif`;
     ctx.textAlign = 'right';
     ctx.fillText(val.toFixed(0), padL - 6, y + 4);
@@ -1703,17 +1756,31 @@ function drawLineChart(canvas, dataPoints) {
     ctx.stroke();
   });
 
-  // X labels (show up to 5)
-  ctx.fillStyle = 'rgba(156,163,175,0.7)';
+  // X labels: 実測した文字幅で重なりを判定して間引く。
+  // 以前は「n個おきに描く」と「最後は必ず描く」が競合し、その2つが隣り合うと
+  // 「07/2908/01」のように重なって読めなくなっていた。日付軸にすると点の間隔が
+  // 不均等になるので、等間隔の間引きでは原理的に判定できない。
+  ctx.fillStyle = pal.label;
   ctx.font = `9px -apple-system, sans-serif`;
   ctx.textAlign = 'center';
-  const step = Math.max(1, Math.ceil(dataPoints.length / 5));
-  dataPoints.forEach((p, i) => {
-    if (i % step === 0 || i === dataPoints.length - 1) {
-      const x = xScale(i);
-      const parts = p.date.split('-');
-      ctx.fillText(`${parts[1]}/${parts[2]}`, x, padT + chartH + 18);
-    }
+  const labelY = padT + chartH + 18;
+  const LABEL_GAP = 8;
+  const labels = dataPoints.map((p, i) => {
+    const [, m, d] = p.date.split('-');
+    const text = `${m}/${d}`;
+    return { text, x: xScale(i), w: ctx.measureText(text).width };
+  });
+  // 右端（＝最新）は必ず描き、そこから左へ、重ならないものだけ拾う
+  const picked = [];
+  for (let i = labels.length - 1; i >= 0; i--) {
+    const cand = labels[i];
+    const prev = picked[picked.length - 1];
+    if (!prev || (prev.x - prev.w / 2) - (cand.x + cand.w / 2) >= LABEL_GAP) picked.push(cand);
+  }
+  picked.forEach(l => {
+    // 端のラベルがキャンバスからはみ出さないように寄せる
+    const x = Math.min(Math.max(l.x, l.w / 2 + 2), W - l.w / 2 - 2);
+    ctx.fillText(l.text, x, labelY);
   });
 }
 
@@ -1848,7 +1915,7 @@ function renderMuscleView() {
   const active = weeks.filter(w => Object.values(w.counts).some(v => v > 0));
   const avgBox = document.getElementById('muscle-avg');
   if (active.length === 0) {
-    avgBox.innerHTML = '<div class="text-center text-sm text-gray-600 py-4">まだ記録がありません</div>';
+    avgBox.innerHTML = '<div class="text-center text-sm text-gray-400 py-4">まだ記録がありません</div>';
     return;
   }
   const rows = MUSCLES.map(m => ({
@@ -1892,12 +1959,13 @@ function drawMuscleChart(canvas, weeks) {
   // 目安帯（10〜20セット/週）。Schoenfeld 2017 のカテゴリ分析は P=0.074 で有意ではないため、
   // 目標線ではなく「通説の位置」として薄く敷くだけに留める
   const bandTop = yScale(20), bandBottom = yScale(10);
-  ctx.fillStyle = 'rgba(148,163,184,0.07)';
+  const pal2 = chartPalette();
+  ctx.fillStyle = pal2.band;
   ctx.fillRect(padL, bandTop, chartW, bandBottom - bandTop);
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = pal2.grid;
   ctx.lineWidth = 1;
-  ctx.fillStyle = 'rgba(156,163,175,0.7)';
+  ctx.fillStyle = pal2.label;
   ctx.font = '9px -apple-system, sans-serif';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
@@ -1922,7 +1990,7 @@ function drawMuscleChart(canvas, weeks) {
     });
     // 週ラベル（詰まらないよう間引く）
     if (weeks.length <= 8 || i % 2 === 0 || i === weeks.length - 1) {
-      ctx.fillStyle = 'rgba(156,163,175,0.75)';
+      ctx.fillStyle = pal2.label;
       ctx.textAlign = 'center';
       ctx.font = '9px -apple-system, sans-serif';
       ctx.fillText(w.week.slice(-3), x + barW / 2, padT + chartH + 14);
@@ -2125,23 +2193,23 @@ function renderEditSets() {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2';
     row.innerHTML = `
-      <span class="text-xs text-gray-500 w-14 flex-shrink-0">セット${i + 1}</span>
+      <span class="text-xs text-gray-400 w-14 flex-shrink-0">セット${i + 1}</span>
       <div class="flex-1 relative">
         <input type="text" readonly inputmode="none" placeholder="重量"
           value="${escapeHtml(set.weight)}" data-set="${i}" data-field="weight"
           data-numpad="decimal" data-numpad-label="重量（${escapeHtml(rowUnit)}）"
           class="edit-set-input num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-10 focus:outline-none" />
-        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">${escapeHtml(rowUnit)}</span>
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">${escapeHtml(rowUnit)}</span>
       </div>
-      <span class="text-gray-600">×</span>
+      <span class="text-gray-400">×</span>
       <div class="flex-1 relative">
         <input type="text" readonly inputmode="none" placeholder="回数"
           value="${set.reps}" data-set="${i}" data-field="reps"
           data-numpad="numeric" data-numpad-label="回数"
           class="edit-set-input num-input w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3.5 text-white text-right pr-8 focus:outline-none" />
-        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">回</span>
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">回</span>
       </div>
-      ${editSets.length > 1 ? `<button class="remove-edit-set-btn flex-shrink-0 text-gray-600 hover:text-red-500 text-2xl leading-none transition-colors px-2 py-2" data-set="${i}">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
+      ${editSets.length > 1 ? `<button class="remove-edit-set-btn flex-shrink-0 text-gray-400 hover:text-red-400 text-2xl leading-none transition-colors rounded-lg" style="width:44px;height:44px;flex-shrink:0;line-height:44px;text-align:center;padding:0" data-set="${i}" aria-label="セット${i + 1}を削除">×</button>` : '<div class="w-5 flex-shrink-0"></div>'}
     `;
     container.appendChild(row);
   });
@@ -2154,9 +2222,16 @@ function renderEditSets() {
   container.querySelectorAll('.remove-edit-set-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       closeNumpad();
-      editSets.splice(parseInt(btn.dataset.set), 1);
+      const eIdx = parseInt(btn.dataset.set);
+      const eRemoved = editSets[eIdx];
+      editSets.splice(eIdx, 1);
       renderEditSets();
       updateEditAddSetBtn();
+      showToast('セットを削除しました', 5000, { label: '元に戻す', fn: () => {
+        editSets.splice(eIdx, 0, eRemoved);
+        renderEditSets();
+        updateEditAddSetBtn();
+      }});
     });
   });
 }
@@ -2418,15 +2493,27 @@ function applyTheme(theme) {
   document.getElementById('theme-icon-sun').classList.toggle('hidden', !isDark);
   document.getElementById('theme-icon-moon').classList.toggle('hidden', isDark);
   localStorage.setItem(THEME_KEY, theme);
+  // 部位色とグラフはテーマ依存なので描き直す（起動時の初回呼び出しでは何もしない）
+  if (window.__wtBooted) {
+    if (currentTab === 'today')   renderToday();
+    if (currentTab === 'history') renderHistory();
+    if (currentTab === 'graph')   renderGraphPage();
+  }
+}
+
+// 保存された選択が無ければ OS のダーク／ライト設定に従う
+function defaultTheme() {
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+    ? 'light' : 'dark';
 }
 
 document.getElementById('theme-toggle-btn').addEventListener('click', () => {
-  const current = localStorage.getItem(THEME_KEY) || 'dark';
+  const current = localStorage.getItem(THEME_KEY) || defaultTheme();
   applyTheme(current === 'dark' ? 'light' : 'dark');
 });
 
 // Apply saved theme immediately (before Firebase / render)
-applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+applyTheme(localStorage.getItem(THEME_KEY) || defaultTheme());
 
 // ============================================================
 // FIREBASE — AUTH & FIRESTORE SYNC
@@ -2920,6 +3007,7 @@ document.addEventListener('keydown', (e) => {
 (function init() {
   deduplicateExercises();  // 起動時に重複種目を自動統合
   currentUnit = getDefaultUnit();
+  window.__wtBooted = true;
   switchTab('today');  // Show app immediately with local data
   initFirebase();      // Then connect Firebase in background
 })();

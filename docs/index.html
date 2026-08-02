@@ -42,6 +42,9 @@
     .np-key:active { opacity: .6; }
     #numpad-value.is-fresh { background-color: rgba(99,102,241,.25); border-radius: 6px; padding: 0 6px; }
 
+    /* プレースホルダも本文と同じ 4.5:1 を満たす（既定の #6b7280 相当では 3.7:1 だった） */
+    input::placeholder, textarea::placeholder { color: #9ca3af; }
+
     /* ===== LIGHT MODE ===== */
     /* body.light-mode と html[data-theme="light"] body の両方に対応（Mac/iPhone共通） */
     body.light-mode,
@@ -84,7 +87,7 @@
     }
     body.light-mode input::placeholder, body.light-mode textarea::placeholder,
     html[data-theme="light"] input::placeholder, html[data-theme="light"] textarea::placeholder
-                                { color: #94a3b8 !important; }
+                                { color: #64748b !important; }   /* 白背景で 4.6:1 */
     body.light-mode #exercise-dropdown, html[data-theme="light"] #exercise-dropdown
                                 { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
     body.light-mode #exercise-dropdown > div, html[data-theme="light"] #exercise-dropdown > div
@@ -105,6 +108,11 @@
                                 { background-color: #e0e7ff !important; }
     body.light-mode #gym-time-form, html[data-theme="light"] #gym-time-form
                                 { border-color: #e2e8f0 !important; }
+    /* リンク色のインディゴは白地だと 2.98:1 しかないので濃くする（#4338ca で 8.6:1） */
+    body.light-mode .text-indigo-400, html[data-theme="light"] .text-indigo-400,
+    body.light-mode .text-indigo-300, html[data-theme="light"] .text-indigo-300
+                                { color: #4338ca !important; }
+
     /* インディゴ背景のボタンは文字を白に保つ */
     body.light-mode .bg-indigo-600, body.light-mode .bg-indigo-700,
     html[data-theme="light"] .bg-indigo-600, html[data-theme="light"] .bg-indigo-700
@@ -113,7 +121,8 @@
   <!-- テーマをDOMロード前に即時適用（FOUC防止 & Mac対応） -->
   <script>
     (function() {
-      var t = localStorage.getItem('wt_theme') || 'dark';
+      var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+      var t = localStorage.getItem('wt_theme') || (m && m.matches ? 'light' : 'dark');
       if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
     })();
   </script>
@@ -125,16 +134,16 @@
   <div id="header" class="safe-top bg-gray-950 border-b border-gray-800 px-4 pb-3 flex-shrink-0 flex items-center justify-between">
     <h1 id="page-title" class="text-lg font-bold text-white">今日</h1>
     <div class="flex items-center gap-2">
-      <div id="sync-indicator" class="hidden text-xs text-gray-600 flex items-center gap-1">
+      <div id="sync-indicator" class="hidden text-xs text-gray-400 flex items-center gap-1">
         <svg class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
         同期中
       </div>
       <img id="user-photo" class="hidden w-7 h-7 rounded-full object-cover border border-gray-700" alt="user" />
-      <button id="theme-toggle-btn" class="text-gray-400 hover:text-gray-200 transition-colors p-2.5 rounded-xl" aria-label="テーマ切替">
+      <button id="theme-toggle-btn" class="text-gray-400 hover:text-gray-200 transition-colors p-2.5 rounded-xl" style="min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center" aria-label="テーマ切替">
         <svg id="theme-icon-sun" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         <svg id="theme-icon-moon" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <button id="backup-btn" class="text-sm text-gray-400 font-medium px-3 py-2.5 rounded-xl border border-gray-700 hover:border-gray-500 transition-colors">メニュー</button>
+      <button id="backup-btn" class="text-sm text-gray-400 font-medium px-3 py-2.5 rounded-xl border border-gray-700 hover:border-gray-500 transition-colors" style="min-height:44px">メニュー</button>
     </div>
   </div>
 
@@ -152,14 +161,14 @@
     <div class="w-full max-w-md bg-gray-900 rounded-t-3xl p-6 pb-10 border-t border-gray-700">
       <div class="flex items-center justify-between mb-5">
         <h2 class="text-base font-bold text-white">メニュー</h2>
-        <button id="backup-modal-close" class="text-gray-500 text-xl leading-none">×</button>
+        <button id="backup-modal-close" class="text-gray-400 text-xl leading-none" style="min-width:44px;min-height:44px">×</button>
       </div>
       <!-- Logged-in user info -->
       <div id="menu-user-section" class="hidden mb-4 p-3 bg-gray-800 rounded-2xl flex items-center gap-3">
         <img id="menu-user-photo" class="w-10 h-10 rounded-full object-cover" alt="user" />
         <div class="flex-1 min-w-0">
           <div id="menu-user-name" class="text-sm font-semibold text-white truncate"></div>
-          <div id="menu-user-email" class="text-xs text-gray-500 truncate"></div>
+          <div id="menu-user-email" class="text-xs text-gray-400 truncate"></div>
         </div>
         <button id="signout-btn" class="text-xs text-red-400 font-medium flex-shrink-0">ログアウト</button>
       </div>
@@ -182,7 +191,7 @@
         <button id="delete-all-btn" class="w-full bg-red-950 hover:bg-red-900 text-red-400 font-semibold py-3.5 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 border border-red-800">
           <span>🗑️</span> 全データを削除する
         </button>
-        <p class="text-xs text-gray-600 text-center pt-1">ログイン中はデータが自動でクラウドに保存されます</p>
+        <p class="text-xs text-gray-400 text-center pt-1">ログイン中はデータが自動でクラウドに保存されます</p>
       </div>
     </div>
   </div>
@@ -191,12 +200,12 @@
   <div id="login-overlay" class="hidden fixed inset-0 z-50 bg-gray-950 flex flex-col items-center justify-center p-8">
     <div class="text-5xl mb-5">🏋️</div>
     <h1 class="text-2xl font-bold text-white mb-2">Workout Tracker</h1>
-    <p class="text-sm text-gray-500 mb-10 text-center leading-relaxed">Googleアカウントでログインすると<br>iPhone・MacBook 間でデータが同期されます</p>
+    <p class="text-sm text-gray-400 mb-10 text-center leading-relaxed">Googleアカウントでログインすると<br>iPhone・MacBook 間でデータが同期されます</p>
     <button id="google-signin-btn" class="w-full max-w-xs bg-white text-gray-900 font-semibold py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg text-sm">
       <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
       Googleでログイン
     </button>
-    <p class="text-xs text-gray-700 mt-6 text-center">ログインせずにローカルのみで使う場合は<br><button id="skip-login-btn" class="text-gray-500 underline">スキップ</button></p>
+    <p class="text-xs text-gray-700 mt-6 text-center">ログインせずにローカルのみで使う場合は<br><button id="skip-login-btn" class="text-gray-400 underline">スキップ</button></p>
   </div>
 
   <!-- Content -->
@@ -206,15 +215,15 @@
       <div id="gym-time-section" class="bg-gray-900 rounded-2xl p-4 mb-4 border border-gray-800">
         <div class="flex items-center justify-between mb-3">
           <span class="text-sm font-semibold text-gray-400 uppercase tracking-wider">ジム時間</span>
-          <button id="edit-gym-time-btn" class="text-sm text-indigo-400 font-semibold px-3 py-1.5 -mr-1 rounded-lg">編集</button>
+          <button id="edit-gym-time-btn" class="text-sm text-indigo-400 font-semibold px-3 py-1.5 -mr-1 rounded-lg" style="min-height:44px;min-width:44px">編集</button>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <div class="text-xs text-gray-500 mb-1">イン</div>
+            <div class="text-xs text-gray-400 mb-1">イン</div>
             <div id="display-gym-in" class="text-2xl font-bold text-indigo-400">--:--</div>
           </div>
           <div>
-            <div class="text-xs text-gray-500 mb-1">アウト</div>
+            <div class="text-xs text-gray-400 mb-1">アウト</div>
             <div id="display-gym-out" class="text-2xl font-bold text-indigo-400">--:--</div>
           </div>
         </div>
@@ -222,11 +231,11 @@
         <div id="gym-time-form" class="hidden mt-3 pt-3 border-t border-gray-800">
           <div class="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label class="text-xs text-gray-500 block mb-1">イン</label>
+              <label class="text-xs text-gray-400 block mb-1">イン</label>
               <input type="time" id="gym-in-input" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
             </div>
             <div>
-              <label class="text-xs text-gray-500 block mb-1">アウト</label>
+              <label class="text-xs text-gray-400 block mb-1">アウト</label>
               <input type="time" id="gym-out-input" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
             </div>
           </div>
@@ -236,15 +245,15 @@
 
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-base font-semibold text-gray-300">本日のトレーニング</h2>
-        <button id="today-add-btn" class="text-indigo-400 text-sm font-semibold px-3 py-2 -mr-1 rounded-lg hover:text-indigo-300 transition-colors">＋ 部位なしで追加</button>
+        <button id="today-add-btn" class="text-indigo-400 text-sm font-semibold px-3 -mr-1 rounded-lg hover:text-indigo-300 transition-colors" style="min-height:44px">＋ 部位なしで追加</button>
       </div>
       <!-- 部位選択ボタン -->
       <div class="grid grid-cols-3 gap-2 mb-3">
-        <button data-today-muscle="胸"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#dc262622;border-color:#dc2626;color:#dc2626;">胸</button>
-        <button data-today-muscle="背中" class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#2563eb22;border-color:#2563eb;color:#2563eb;">背中</button>
+        <button data-today-muscle="胸"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#dc262622;border-color:#dc2626;color:#e14545;">胸</button>
+        <button data-today-muscle="背中" class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#2563eb22;border-color:#2563eb;color:#467aee;">背中</button>
         <button data-today-muscle="脚"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#16a34a22;border-color:#16a34a;color:#16a34a;">脚</button>
         <button data-today-muscle="肩"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#ca8a0422;border-color:#ca8a04;color:#ca8a04;">肩</button>
-        <button data-today-muscle="腕"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#9333ea22;border-color:#9333ea;color:#9333ea;">腕</button>
+        <button data-today-muscle="腕"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#9333ea22;border-color:#9333ea;color:#a556ee;">腕</button>
         <button data-today-muscle="腹"  class="today-muscle-btn py-4 rounded-2xl text-lg font-bold border transition-colors" style="background-color:#0d948822;border-color:#0d9488;color:#0d9488;">腹</button>
       </div>
 
@@ -255,7 +264,7 @@
             <span class="text-sm text-gray-400">保存済み</span>
             <span id="today-summary-count" class="text-base font-bold text-indigo-400"></span>
           </div>
-          <span class="text-sm text-gray-500">履歴で確認 →</span>
+          <span class="text-sm text-gray-400">履歴で確認 →</span>
         </button>
       </div>
 
@@ -263,7 +272,7 @@
       <div id="today-suggestion-cards" class="space-y-3"></div>
 
       <!-- 空状態（部位未選択かつ記録なし） -->
-      <div id="today-empty" class="text-center py-12 text-gray-600">
+      <div id="today-empty" class="text-center py-12 text-gray-400">
         <div class="text-4xl mb-3">🏋️</div>
         <div class="text-sm">部位を選んでトレーニングを始めよう</div>
       </div>
@@ -295,7 +304,7 @@
         <div id="suggestions-panel" class="hidden">
           <div class="flex items-center justify-between mb-2">
             <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider" id="suggestions-label">前回メニュー（過去5回）</label>
-            <button id="suggestions-toggle" class="text-xs text-gray-500 underline">非表示</button>
+            <button id="suggestions-toggle" class="text-xs text-gray-400 underline" style="min-height:44px;padding:0 8px">非表示</button>
           </div>
           <div id="suggestions-list" class="space-y-2"></div>
         </div>
@@ -352,7 +361,7 @@
         <!-- Memo -->
         <div>
           <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">メモ</label>
-          <textarea id="add-memo" rows="3" placeholder="気づいたこと、注意点など..." class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors resize-none placeholder-gray-700"></textarea>
+          <textarea id="add-memo" rows="3" placeholder="気づいたこと、注意点など..." class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors resize-none"></textarea>
         </div>
 
         <!-- Save -->
@@ -368,19 +377,19 @@
       <div id="history-muscle-pills" class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-2" style="scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
       <!-- Exercise filter -->
       <div id="history-exercise-wrap" class="hidden mb-3">
-        <select id="history-exercise-select-filter" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 appearance-none">
+        <select id="history-exercise-select-filter" style="min-height:44px" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 appearance-none">
           <option value="">すべての種目</option>
         </select>
       </div>
       <!-- View toggle -->
       <div class="flex items-center justify-end mb-3">
         <div class="flex bg-gray-900 border border-gray-800 rounded-xl p-0.5">
-          <button id="history-list-btn" class="history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors bg-indigo-600 text-white" data-mode="list">リスト</button>
-          <button id="history-cal-btn" class="history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors text-gray-500" data-mode="calendar">カレンダー</button>
+          <button id="history-list-btn" style="min-height:44px" class="history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors bg-indigo-600 text-white" data-mode="list">リスト</button>
+          <button id="history-cal-btn" style="min-height:44px" class="history-view-btn px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors text-gray-400" data-mode="calendar">カレンダー</button>
         </div>
       </div>
       <div id="history-list" class="space-y-3">
-        <div id="history-empty" class="text-center py-12 text-gray-600">
+        <div id="history-empty" class="text-center py-12 text-gray-400">
           <div class="text-4xl mb-3">📅</div>
           <div class="text-sm">まだ記録がありません</div>
         </div>
@@ -406,7 +415,7 @@
           <div id="muscle-legend" class="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-gray-800"></div>
         </div>
         <div id="muscle-avg" class="bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-3"></div>
-        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 text-xs text-gray-500 leading-relaxed">
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 text-xs text-gray-400 leading-relaxed">
           <div class="font-semibold text-gray-400 mb-1">この数値の読み方</div>
           ウォームアップを含む素の集計です（本アプリはウォームアップを区別していません）。<br>
           「補助0.5」は、ベンチプレスなら胸=1.0・腕/肩=0.5 のように数える方式です。研究（Pelland 2026）で最も支持された数え方ですが、
@@ -430,7 +439,7 @@
         <button id="graph-volume-btn" class="flex-1 py-3.5 rounded-xl text-base font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400">総ボリューム</button>
       </div>
       <div id="graph-container" class="bg-gray-900 rounded-2xl border border-gray-800 p-4">
-        <div id="graph-empty" class="text-center py-12 text-gray-600">
+        <div id="graph-empty" class="text-center py-12 text-gray-400">
           <div class="text-4xl mb-3">📊</div>
           <div class="text-sm">種目を選択するとグラフが表示されます</div>
         </div>
@@ -455,7 +464,7 @@
           </div>
           <div>
             <div class="text-lg font-bold text-white">Workout Tracker</div>
-            <div class="text-sm text-gray-500">筋トレの記録・振り返り用アプリ</div>
+            <div class="text-sm text-gray-400">筋トレの記録・振り返り用アプリ</div>
           </div>
         </div>
         <p class="text-[15px] text-gray-300 leading-relaxed mt-3">
@@ -612,20 +621,20 @@
           <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">トレーニング時間</label>
           <div class="flex items-center gap-3">
             <div class="flex-1">
-              <div class="text-xs text-gray-500 mb-1">イン</div>
+              <div class="text-xs text-gray-400 mb-1">イン</div>
               <input type="time" id="edit-gym-in" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors" />
             </div>
-            <div class="text-gray-600 mt-4">〜</div>
+            <div class="text-gray-400 mt-4">〜</div>
             <div class="flex-1">
-              <div class="text-xs text-gray-500 mb-1">アウト</div>
+              <div class="text-xs text-gray-400 mb-1">アウト</div>
               <input type="time" id="edit-gym-out" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors" />
             </div>
           </div>
-          <p class="text-xs text-gray-600 mt-1.5">※ 同じ日の全記録に反映されます</p>
+          <p class="text-xs text-gray-400 mt-1.5">※ 同じ日の全記録に反映されます</p>
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">メモ</label>
-          <textarea id="edit-memo" rows="3" placeholder="気づいたこと、注意点など..." class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors resize-none placeholder-gray-700"></textarea>
+          <textarea id="edit-memo" rows="3" placeholder="気づいたこと、注意点など..." class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 text-white text-base focus:outline-none focus:border-indigo-500 transition-colors resize-none"></textarea>
         </div>
       </div>
     </div>
@@ -635,7 +644,7 @@
   <div id="numpad" class="hidden fixed inset-x-0 bottom-0 z-[60] bg-gray-900 border-t border-gray-700 shadow-2xl" style="user-select:none;-webkit-user-select:none">
     <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-800">
       <div class="min-w-0 flex-1">
-        <div id="numpad-label" class="text-xs text-gray-500 truncate">重量</div>
+        <div id="numpad-label" class="text-xs text-gray-400 truncate">重量</div>
         <div class="text-2xl font-bold text-white truncate leading-tight">
           <span id="numpad-value">0</span>
         </div>
