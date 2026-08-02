@@ -1,0 +1,5 @@
+# 個人のトレーニング記録（バックアップのエクスポート）。
+# このリポジトリは公開 GitHub Pages なので、絶対にコミットしない。
+docs/notes-import.json
+*-backup-*.json
+workout-backup-*.json

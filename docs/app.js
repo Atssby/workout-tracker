@@ -473,10 +473,12 @@ function saveTodayCard(card, muscleGroup) {
     saveEntries(entries);
     card.dataset.savedEntryId = entry.id;
     showToast(`${exerciseName} を保存しました`);
+    announcePRs(entry);          // 自己ベスト更新なら通知
   }
 
   markTodayCardSaved(card);
   renderTodaySummary();
+  startRestTimer();              // セット完了に相当するタイミングで休憩を開始
 }
 
 document.getElementById('today-summary-btn').addEventListener('click', () => switchTab('history'));
@@ -566,6 +568,7 @@ function buildEntryCard(entry, showActions, onDelete) {
       if (confirm(`「${entry.exerciseName}」の記録を削除しますか？`)) {
         // 物理削除ではなく tombstone 化する。物理削除だと他端末から復活しうる
         deleteEntryById(entry.id);
+        offerUndoDelete(entry);
         if (onDelete) onDelete(); else renderToday();
       }
     });
@@ -1028,6 +1031,7 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
   const entries = getEntries();
   entries.push(entry);
   saveEntries(entries);
+  announcePRs(entry);
 
   // Reset form
   sets = [{ weight: '', reps: '' }];
@@ -1043,12 +1047,12 @@ document.getElementById('save-entry-btn').addEventListener('click', () => {
   }
 });
 
-function showToast(msg) {
+function showToast(msg, ms) {
   const toast = document.createElement('div');
-  toast.className = 'fixed top-16 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg z-50 transition-opacity';
+  toast.className = 'fixed top-16 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg z-50 transition-opacity max-w-xs text-center';
   toast.textContent = msg;
   document.body.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2000);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, ms || 2000);
 }
 
 // ============================================================
@@ -1431,10 +1435,41 @@ document.getElementById('history-cal-btn').addEventListener('click', () => {
 // GRAPH PAGE
 // ============================================================
 
+let graphView = 'exercise';   // 'exercise' | 'muscle'
+
 function renderGraphPage() {
+  const isMuscle = graphView === 'muscle';
+  document.getElementById('graph-exercise-view').classList.toggle('hidden', isMuscle);
+  document.getElementById('graph-muscle-view').classList.toggle('hidden', !isMuscle);
+
+  const on  = 'flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white';
+  const off = 'flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
+  document.getElementById('graph-view-exercise').className = isMuscle ? off : on;
+  document.getElementById('graph-view-muscle').className   = isMuscle ? on  : off;
+
+  if (isMuscle) { renderMuscleView(); return; }
   renderGraphMusclePills();
   renderGraphExerciseSelect();
   renderGraph();
+}
+
+document.getElementById('graph-view-exercise').addEventListener('click', () => {
+  graphView = 'exercise'; renderGraphPage();
+});
+document.getElementById('graph-view-muscle').addEventListener('click', () => {
+  graphView = 'muscle'; renderGraphPage();
+});
+document.getElementById('mv-count-fractional').addEventListener('click', () => {
+  muscleCountFractional = true; updateMuscleCountBtns(); renderMuscleView();
+});
+document.getElementById('mv-count-direct').addEventListener('click', () => {
+  muscleCountFractional = false; updateMuscleCountBtns(); renderMuscleView();
+});
+function updateMuscleCountBtns() {
+  const on  = 'flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white';
+  const off = 'flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
+  document.getElementById('mv-count-fractional').className = muscleCountFractional ? on : off;
+  document.getElementById('mv-count-direct').className     = muscleCountFractional ? off : on;
 }
 
 function renderGraphMusclePills() {
@@ -1697,6 +1732,352 @@ document.getElementById('graph-volume-btn').addEventListener('click', () => {
   document.getElementById('graph-weight-btn').className = 'flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400';
   renderGraph();
 });
+
+// ============================================================
+// 部位別・週間セット数
+// ============================================================
+// 週あたりの部位別セット数は、肥大の用量指標として最も裏付けが強い
+// （Schoenfeld 2017: 連続変数で P=0.002 ／ Pelland 2026: 傾き>0 の事後確率100%）。
+// 「種目ごとの最大重量の折れ線」ではこのドライバーが見えないため追加した。
+//
+// 数え方は Pelland 2026 が最も支持した fractional（主働筋1.0／協働筋0.5）。
+// ただし 0.5 という重みは著者自身が heuristic と明言しているので、
+// 「主働のみ」に切り替えられるようにし、UIにも注記を出している。
+
+const MUSCLES = ['胸', '背中', '脚', '肩', '腕', '腹'];
+
+// 種目名から主働筋・協働筋を推定するテーブル（前方一致でなく部分一致）。
+// exercise.muscleGroups / exercise.secondaryMuscles が設定されていればそちらを優先する。
+const EXERCISE_MUSCLE_HINTS = [
+  { re: /(ベンチプレス|チェストプレス|ダンベルプレス|プッシュアップ|腕立て|ディップ)/, primary: '胸',  secondary: ['腕', '肩'] },
+  { re: /(フライ|ペックデック|ペックフライ)/,                                        primary: '胸',  secondary: [] },
+  { re: /(デッドリフト)/,                                                            primary: '背中', secondary: ['脚', '腕'] },
+  { re: /(ラットプル|懸垂|チンニング|プルアップ|ロウ|ローイング|プルオーバー|シュラッグ)/, primary: '背中', secondary: ['腕'] },
+  { re: /(スクワット|レッグプレス|ランジ|ヒップスラスト|ブルガリアン)/,                 primary: '脚',  secondary: ['腹'] },
+  { re: /(レッグエクステンション|レッグカール|カーフ|アダクション|アブダクション)/,      primary: '脚',  secondary: [] },
+  { re: /(ショルダープレス|オーバーヘッドプレス|アップライトロウ)/,                     primary: '肩',  secondary: ['腕'] },
+  { re: /(サイドレイズ|フロントレイズ|リアレイズ|リアデルト)/,                          primary: '肩',  secondary: [] },
+  { re: /(カール|プッシュダウン|キックバック|トライセプス|ビセップス|フレンチプレス)/,    primary: '腕',  secondary: [] },
+  { re: /(クランチ|シットアップ|レッグレイズ|プランク|アブ|トーソ|腹筋)/,               primary: '腹',  secondary: [] },
+];
+
+// エントリ1件が各部位に寄与するセット数を返す（fractional なら協働筋は0.5）
+function entryMuscleContribution(entry, exercisesById, fractional) {
+  const out = {};
+  const setCount = (entry.sets || []).length;
+  if (!setCount) return out;
+
+  const ex = exercisesById[entry.exerciseId];
+  let primary = entry.muscleGroup || (ex && (ex.muscleGroups || [])[0]) || '';
+  let secondary = (ex && ex.secondaryMuscles) || null;
+
+  if (!primary || !secondary) {
+    const hint = EXERCISE_MUSCLE_HINTS.find(h => h.re.test(entry.exerciseName || ''));
+    if (hint) {
+      if (!primary) primary = hint.primary;
+      if (!secondary) secondary = hint.secondary;
+    }
+  }
+  if (!primary) return out;
+  if (!secondary) secondary = [];
+
+  out[primary] = (out[primary] || 0) + setCount;
+  if (fractional) {
+    for (const m of secondary) {
+      if (m === primary || !MUSCLES.includes(m)) continue;
+      out[m] = (out[m] || 0) + setCount * 0.5;
+    }
+  }
+  return out;
+}
+
+function isoWeekKey(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);                       // ISO: 木曜日基準
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+// 直近 n 週分（記録が無い週も0として詰める）を返す
+function weeklyMuscleSets(nWeeks, fractional) {
+  const exercisesById = {};
+  getExercises().forEach(x => { exercisesById[x.id] = x; });
+
+  const byWeek = {};
+  getEntries().forEach(e => {
+    if (!e.date) return;
+    const k = isoWeekKey(e.date);
+    if (!byWeek[k]) byWeek[k] = {};
+    const c = entryMuscleContribution(e, exercisesById, fractional);
+    for (const m in c) byWeek[k][m] = (byWeek[k][m] || 0) + c[m];
+  });
+
+  // 今週から遡って n 週分のキーを作る（欠週を隠さない）
+  const keys = [];
+  const now = new Date();
+  for (let i = nWeeks - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i * 7);
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const k = isoWeekKey(ds);
+    if (!keys.includes(k)) keys.push(k);
+  }
+  return keys.map(k => ({ week: k, counts: byWeek[k] || {} }));
+}
+
+let muscleCountFractional = true;
+
+function renderMuscleView() {
+  const weeks = weeklyMuscleSets(12, muscleCountFractional);
+  drawMuscleChart(document.getElementById('muscle-canvas'), weeks);
+
+  // 凡例
+  const legend = document.getElementById('muscle-legend');
+  legend.innerHTML = '';
+  MUSCLES.forEach(m => {
+    const el = document.createElement('span');
+    el.className = 'inline-flex items-center gap-1 text-xs text-gray-400';
+    el.innerHTML = `<span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${MUSCLE_COLORS[m].activeBg}"></span>`;
+    el.appendChild(document.createTextNode(m));
+    legend.appendChild(el);
+  });
+
+  // 週平均（記録のある週だけで平均を出す。0の週を混ぜると実施週の実態が薄まるため）
+  const active = weeks.filter(w => Object.values(w.counts).some(v => v > 0));
+  const avgBox = document.getElementById('muscle-avg');
+  if (active.length === 0) {
+    avgBox.innerHTML = '<div class="text-center text-sm text-gray-600 py-4">まだ記録がありません</div>';
+    return;
+  }
+  const rows = MUSCLES.map(m => ({
+    m, avg: active.reduce((s, w) => s + (w.counts[m] || 0), 0) / active.length
+  })).sort((a, b) => b.avg - a.avg);
+
+  const max = Math.max(...rows.map(r => r.avg), 1);
+  avgBox.innerHTML = `<div class="text-xs font-semibold text-gray-400 mb-3">
+      記録のあった${active.length}週の平均（セット/週）</div>`;
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 mb-2';
+    row.innerHTML = `
+      <span class="text-xs text-gray-400 w-8 flex-shrink-0">${r.m}</span>
+      <span class="flex-1 h-2 rounded-full bg-gray-800 overflow-hidden">
+        <span class="block h-full rounded-full" style="width:${(r.avg / max * 100).toFixed(1)}%;background:${MUSCLE_COLORS[r.m].activeBg}"></span>
+      </span>
+      <span class="text-xs font-bold text-gray-300 w-10 text-right tabular-nums flex-shrink-0">${r.avg.toFixed(1)}</span>`;
+    avgBox.appendChild(row);
+  });
+}
+
+function drawMuscleChart(canvas, weeks) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.getBoundingClientRect().width - 32;
+  const H = 260;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 30, padR = 8, padT = 12, padB = 34;
+  const chartW = W - padL - padR, chartH = H - padT - padB;
+
+  const totals = weeks.map(w => MUSCLES.reduce((s, m) => s + (w.counts[m] || 0), 0));
+  const maxTotal = Math.max(...totals, 10);
+  const yScale = v => padT + chartH - (v / maxTotal) * chartH;
+
+  // 目安帯（10〜20セット/週）。Schoenfeld 2017 のカテゴリ分析は P=0.074 で有意ではないため、
+  // 目標線ではなく「通説の位置」として薄く敷くだけに留める
+  const bandTop = yScale(20), bandBottom = yScale(10);
+  ctx.fillStyle = 'rgba(148,163,184,0.07)';
+  ctx.fillRect(padL, bandTop, chartW, bandBottom - bandTop);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(156,163,175,0.7)';
+  ctx.font = '9px -apple-system, sans-serif';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const v = (maxTotal / 4) * i, y = yScale(v);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    ctx.fillText(String(Math.round(v)), padL - 5, y + 3);
+  }
+
+  const slot = chartW / Math.max(weeks.length, 1);
+  const barW = Math.min(slot * 0.62, 28);
+
+  weeks.forEach((w, i) => {
+    const x = padL + slot * i + (slot - barW) / 2;
+    let acc = 0;
+    MUSCLES.forEach(m => {
+      const v = w.counts[m] || 0;
+      if (v <= 0) return;
+      const y0 = yScale(acc), y1 = yScale(acc + v);
+      ctx.fillStyle = MUSCLE_COLORS[m].activeBg;
+      ctx.fillRect(x, y1, barW, Math.max(y0 - y1, 0.5));
+      acc += v;
+    });
+    // 週ラベル（詰まらないよう間引く）
+    if (weeks.length <= 8 || i % 2 === 0 || i === weeks.length - 1) {
+      ctx.fillStyle = 'rgba(156,163,175,0.75)';
+      ctx.textAlign = 'center';
+      ctx.font = '9px -apple-system, sans-serif';
+      ctx.fillText(w.week.slice(-3), x + barW / 2, padT + chartH + 14);
+    }
+    // 合計
+    if (acc > 0) {
+      ctx.fillStyle = 'rgba(226,232,240,0.9)';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 9px -apple-system, sans-serif';
+      ctx.fillText(acc % 1 ? acc.toFixed(1) : String(acc), x + barW / 2, yScale(acc) - 4);
+    }
+  });
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(148,163,184,0.6)';
+  ctx.font = '9px -apple-system, sans-serif';
+  ctx.fillText('薄い帯 = 通説の10〜20セット（目標線ではありません）', padL, padT + chartH + 30);
+}
+
+// ============================================================
+// PR（自己ベスト）検出
+// ============================================================
+// 単位を kg に正規化してから比較する（優先度3の修正が前提）。
+// 推定1RM は Epley 式。Reynolds 2006 が「線形式は10レップ以下」としているため、
+// 11レップ以上のセットからは算出しない。
+
+function epley1RMkg(set) {
+  const reps = parseInt(set.reps) || 0;
+  if (reps <= 0 || reps > 10) return null;      // 有効域外は推定しない
+  return toKg(set.weight, set.unit) * (1 + reps / 30);
+}
+
+function best1RMkg(sets) {
+  return (sets || []).reduce((mx, s) => {
+    const v = epley1RMkg(s);
+    return v != null && v > mx ? v : mx;
+  }, 0);
+}
+function bestSetVolumeKg(sets) {
+  return (sets || []).reduce((mx, s) =>
+    Math.max(mx, toKg(s.weight, s.unit) * (parseInt(s.reps) || 0)), 0);
+}
+
+// 保存したエントリが自己ベストを更新したか判定する。
+// 比較対象は「同じ種目名の、この記録より前の日付」のエントリ。
+function detectPRs(entry) {
+  const key = (entry.exerciseName || '').trim().toLowerCase();
+  const past = getEntries().filter(e =>
+    e.id !== entry.id &&
+    (e.exerciseName || '').trim().toLowerCase() === key &&
+    e.date <= entry.date
+  );
+  if (past.length === 0) return [];   // 初回は PR 扱いしない（全部が「自己ベスト」になってしまう）
+
+  const prs = [];
+  const dispUnit = getDefaultUnit();
+  const checks = [
+    { label: '最大重量',       now: entryMaxKg(entry.sets),      prev: Math.max(...past.map(e => entryMaxKg(e.sets))) },
+    { label: '推定1RM',        now: best1RMkg(entry.sets),       prev: Math.max(...past.map(e => best1RMkg(e.sets))) },
+    { label: 'ベストセット',   now: bestSetVolumeKg(entry.sets), prev: Math.max(...past.map(e => bestSetVolumeKg(e.sets))) },
+  ];
+  for (const c of checks) {
+    if (c.now > 0 && c.now > c.prev + 1e-9) {
+      prs.push(`${c.label} ${formatKg(c.now, dispUnit)}${dispUnit}`);
+    }
+  }
+  return prs;
+}
+
+function announcePRs(entry) {
+  const prs = detectPRs(entry);
+  if (prs.length === 0) return;
+  showToast(`🏆 自己ベスト更新! ${prs.join(' / ')}`, 3500);
+  if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch {} }
+}
+
+// ============================================================
+// 休憩タイマー
+// ============================================================
+// Strong / Hevy / FitNotes / StrengthLog / Fitbod の5本で確認できた定番機能。
+// 本アプリはセット単位の完了マークを持たないため、カードの保存を開始トリガーにする。
+
+const REST_KEY = 'wt_rest_sec';
+let restTimerId = null, restEndAt = 0, restTotal = 0;
+
+function getRestSeconds() { return load(REST_KEY, 120); }
+function setRestSeconds(s) { save(REST_KEY, s); }
+
+function startRestTimer(seconds) {
+  const sec = seconds || getRestSeconds();
+  if (!sec) return;
+  restTotal = sec;
+  restEndAt = Date.now() + sec * 1000;
+  document.getElementById('rest-timer').classList.remove('hidden');
+  tickRestTimer();
+  clearInterval(restTimerId);
+  restTimerId = setInterval(tickRestTimer, 200);
+}
+
+function tickRestTimer() {
+  const leftMs = restEndAt - Date.now();
+  const left = Math.max(0, Math.ceil(leftMs / 1000));
+  const el = document.getElementById('rest-remaining');
+  if (el) el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  const bar = document.getElementById('rest-progress');
+  if (bar) bar.style.width = `${Math.max(0, Math.min(100, (leftMs / (restTotal * 1000)) * 100))}%`;
+  if (leftMs <= 0) {
+    stopRestTimer();
+    showToast('休憩おわり');
+    if (navigator.vibrate) { try { navigator.vibrate([120, 80, 120]); } catch {} }
+  }
+}
+
+function stopRestTimer() {
+  clearInterval(restTimerId);
+  restTimerId = null;
+  document.getElementById('rest-timer')?.classList.add('hidden');
+}
+
+document.getElementById('rest-stop')?.addEventListener('click', stopRestTimer);
+document.querySelectorAll('.rest-add-btn').forEach(b =>
+  b.addEventListener('click', () => {
+    restEndAt += parseInt(b.dataset.sec) * 1000;
+    if (restEndAt < Date.now()) restEndAt = Date.now();
+    tickRestTimer();
+  })
+);
+
+// ============================================================
+// 削除の取り消し（tombstone を戻すだけなので安全に実装できる）
+// ============================================================
+let undoTimerId = null;
+
+function offerUndoDelete(entry) {
+  const bar = document.getElementById('undo-bar');
+  if (!bar) return;
+  document.getElementById('undo-msg').textContent = `「${entry.exerciseName || '記録'}」を削除しました`;
+  bar.classList.remove('hidden');
+  clearTimeout(undoTimerId);
+  undoTimerId = setTimeout(() => bar.classList.add('hidden'), 6000);
+
+  const btn = document.getElementById('undo-btn');
+  const handler = () => {
+    // tombstone を元のエントリで置き換えて復元する
+    const raw = getEntriesRaw().map(e => e.id === entry.id ? stampEntry({ ...entry, deleted: false }) : e);
+    saveEntriesRaw(raw.map(e => { if (e.id === entry.id) delete e.deleted; return e; }));
+    scheduleFsSync();
+    bar.classList.add('hidden');
+    btn.removeEventListener('click', handler);
+    showToast('元に戻しました');
+    if (currentTab === 'today') renderToday();
+    if (currentTab === 'history') renderHistory();
+  };
+  btn.addEventListener('click', handler, { once: true });
+}
 
 // ============================================================
 // EDIT ENTRY MODAL

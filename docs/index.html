@@ -10,27 +10,13 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <title>Workout Tracker</title>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            indigo: {
-              400: '#818cf8',
-              500: '#6366f1',
-              600: '#4f46e5',
-              700: '#4338ca',
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <!-- 外部CDNは使わない（オフラインで読めず、Service Worker のキャッシュ対象にもならないため）。
+       Tailwind は Play CDN が本アプリのクラス向けに生成したCSSを自己ホストしている。
+       公式: 「The Play CDN is designed for development purposes only, and is not intended for production.」 -->
+  <link rel="stylesheet" href="tailwind.css" />
+  <script src="vendor/firebase-app-compat.js"></script>
+  <script src="vendor/firebase-auth-compat.js"></script>
+  <script src="vendor/firebase-firestore-compat.js"></script>
   <style>
     * { -webkit-tap-highlight-color: transparent; }
     body { overscroll-behavior: none; height: 100dvh; } /* dvh = Safari下部バー考慮 */
@@ -403,6 +389,34 @@
 
     <!-- Graph Page -->
     <div id="page-graph" class="page p-4 pb-24">
+      <!-- 表示の種類: 種目別の推移 / 部位別の週間セット数 -->
+      <div class="mb-4 flex gap-2">
+        <button id="graph-view-exercise" class="flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white">種目別</button>
+        <button id="graph-view-muscle" class="flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400">部位別・週間セット数</button>
+      </div>
+
+      <!-- ===== 部位別・週間セット数 ===== -->
+      <div id="graph-muscle-view" class="hidden">
+        <div class="mb-3 flex gap-2">
+          <button id="mv-count-fractional" class="flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-indigo-600 border-indigo-600 text-white">主働1.0＋補助0.5</button>
+          <button id="mv-count-direct" class="flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors bg-gray-900 border-gray-800 text-gray-400">主働のみ</button>
+        </div>
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-3">
+          <canvas id="muscle-canvas" class="w-full" style="height: 260px;"></canvas>
+          <div id="muscle-legend" class="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-gray-800"></div>
+        </div>
+        <div id="muscle-avg" class="bg-gray-900 rounded-2xl border border-gray-800 p-4 mb-3"></div>
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 p-4 text-xs text-gray-500 leading-relaxed">
+          <div class="font-semibold text-gray-400 mb-1">この数値の読み方</div>
+          ウォームアップを含む素の集計です（本アプリはウォームアップを区別していません）。<br>
+          「補助0.5」は、ベンチプレスなら胸=1.0・腕/肩=0.5 のように数える方式です。研究（Pelland 2026）で最も支持された数え方ですが、
+          <span class="text-gray-400">0.5 という重みは著者自身が「目安であって確定した基準ではない」と述べています</span>。<br>
+          種目と部位の対応は種目名からの自動推定です。実態と違う場合は参考値として見てください。
+        </div>
+      </div>
+
+      <!-- ===== 種目別 ===== -->
+      <div id="graph-exercise-view">
       <!-- 部位フィルタ -->
       <div id="graph-muscle-pills" class="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 mb-3" style="scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
       <div class="mb-4">
@@ -423,6 +437,7 @@
         <canvas id="graph-canvas" class="hidden w-full" style="height: 250px;"></canvas>
         <div id="graph-stats" class="hidden mt-4 grid grid-cols-3 gap-2"></div>
       </div>
+      </div><!-- /graph-exercise-view -->
     </div>
 
     <!-- Help Page -->
@@ -643,6 +658,26 @@
       <button data-np="0" class="np-key col-span-2 bg-gray-800 border border-gray-700 text-white text-2xl font-semibold py-3 rounded-xl">0</button>
       <button data-np="." id="numpad-dot" class="np-key bg-gray-800 border border-gray-700 text-white text-2xl font-semibold py-3 rounded-xl">.</button>
     </div>
+  </div>
+
+  <!-- 休憩タイマー（セット保存で自動開始。主要トラッカー5本で確認できた定番機能） -->
+  <div id="rest-timer" class="hidden fixed inset-x-0 z-40 bg-gray-900 border-t border-indigo-700" style="bottom:calc(env(safe-area-inset-bottom, 0px) + 72px)">
+    <div id="rest-progress" class="h-1 bg-indigo-500" style="width:100%"></div>
+    <div class="px-4 py-3 flex items-center gap-3">
+      <span class="text-xs text-gray-400 flex-shrink-0">休憩</span>
+      <span id="rest-remaining" class="text-2xl font-bold text-indigo-400 tabular-nums flex-shrink-0">2:00</span>
+      <div class="flex gap-1.5 ml-auto flex-shrink-0">
+        <button class="rest-add-btn px-3 py-2 rounded-lg bg-gray-800 text-gray-300 text-xs font-semibold" data-sec="-30">−30</button>
+        <button class="rest-add-btn px-3 py-2 rounded-lg bg-gray-800 text-gray-300 text-xs font-semibold" data-sec="30">+30</button>
+        <button id="rest-stop" class="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 text-xs font-semibold">停止</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 元に戻す（削除の取り消し） -->
+  <div id="undo-bar" class="hidden fixed inset-x-4 z-50 bg-gray-800 border border-gray-700 rounded-xl shadow-xl px-4 py-3 flex items-center justify-between gap-3" style="bottom:calc(env(safe-area-inset-bottom, 0px) + 84px)">
+    <span id="undo-msg" class="text-sm text-gray-200 truncate"></span>
+    <button id="undo-btn" class="text-sm font-bold text-indigo-400 flex-shrink-0 px-3 py-1.5 rounded-lg">元に戻す</button>
   </div>
 
   <!-- Bottom Tab Bar -->

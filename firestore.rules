@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Workout Tracker — Firestore セキュリティルール
+//
+// アプリのデータは users/{uid}/data/{entries|exercises|settings} に置いている。
+// 本人以外が読み書きできないことを保証する。
+//
+// 反映方法（このファイルはリポジトリ側の正本。Firebase コンソールで直接編集しない）:
+//   firebase deploy --only firestore:rules
+// もしくは Firebase コンソール > Firestore Database > ルール にこの内容を貼り付ける。
+//
+// 注意: このファイルを追加した時点では、実際に本番へ反映されているルールは未確認。
+// 反映前に必ずコンソールで現行ルールを確認すること（テストモードのまま期限切れ、
+// あるいは全開放になっていないか）。
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 本人のドキュメントのみ許可
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // 上記以外は全拒否（明示しておく）
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
