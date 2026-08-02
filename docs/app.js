@@ -2071,7 +2071,9 @@ function announcePRs(entry) {
 // 休憩タイマー
 // ============================================================
 // Strong / Hevy / FitNotes / StrengthLog / Fitbod の5本で確認できた定番機能。
-// 本アプリはセット単位の完了マークを持たないため、カードの保存を開始トリガーにする。
+// 開始トリガーは2つ:
+//   1) 自動 — 本アプリはセット単位の完了マークを持たないため、カードの保存で開始する
+//   2) 手動 — ヘッダーの⏱から長さを選んで開始する（ウォームアップ中・種目間など保存を伴わない休憩用）
 
 const REST_KEY = 'wt_rest_sec';
 let restTimerId = null, restEndAt = 0, restTotal = 0;
@@ -2088,6 +2090,7 @@ function startRestTimer(seconds) {
   tickRestTimer();
   clearInterval(restTimerId);
   restTimerId = setInterval(tickRestTimer, 200);
+  renderRestControls();
 }
 
 function tickRestTimer() {
@@ -2108,6 +2111,7 @@ function stopRestTimer() {
   clearInterval(restTimerId);
   restTimerId = null;
   document.getElementById('rest-timer')?.classList.add('hidden');
+  renderRestControls();
 }
 
 document.getElementById('rest-stop')?.addEventListener('click', stopRestTimer);
@@ -2118,6 +2122,61 @@ document.querySelectorAll('.rest-add-btn').forEach(b =>
     tickRestTimer();
   })
 );
+
+// --- 手動起動（ヘッダーの⏱ → 長さを選んで開始） -----------------------------
+// 自動開始はカード保存が前提なので、ウォームアップ中や種目の入れ替え中など
+// 「保存を伴わない休憩」では使えない。そのぶんを手動で補う。
+const restModal = document.getElementById('rest-modal');
+
+// 実行中かどうかで、ヘッダーの⏱の色とモーダル内の停止ボタンを切り替える
+function renderRestControls() {
+  const running = restTimerId !== null;
+  const btn = document.getElementById('rest-open-btn');
+  if (btn) {
+    btn.classList.toggle('text-indigo-400', running);
+    btn.classList.toggle('text-gray-400', !running);
+  }
+  document.getElementById('rest-modal-stop')?.classList.toggle('hidden', !running);
+}
+
+function openRestModal() {
+  const sel = document.getElementById('rest-default-select');
+  if (sel) {
+    sel.value = String(getRestSeconds());
+    if (!sel.value) sel.value = '120';   // 選択肢にない値が入っていたときの保険
+  }
+  renderRestControls();
+  restModal?.classList.remove('hidden');
+}
+
+function closeRestModal() { restModal?.classList.add('hidden'); }
+
+document.getElementById('rest-open-btn')?.addEventListener('click', openRestModal);
+document.getElementById('rest-modal-close')?.addEventListener('click', closeRestModal);
+restModal?.addEventListener('click', (e) => { if (e.target === restModal) closeRestModal(); });
+
+document.querySelectorAll('.rest-start-btn').forEach(b =>
+  b.addEventListener('click', () => {
+    startRestTimer(parseInt(b.dataset.sec));
+    closeRestModal();
+  })
+);
+
+document.getElementById('rest-modal-stop')?.addEventListener('click', () => {
+  stopRestTimer();
+  closeRestModal();
+});
+
+// 既定の長さ（保存時の自動開始に使う）。0 なら自動開始しない＝手動専用になる
+document.getElementById('rest-default-select')?.addEventListener('change', (e) => {
+  const sec = parseInt(e.target.value) || 0;
+  setRestSeconds(sec);
+  showToast(sec ? `保存時は ${fmtRestSec(sec)} で自動開始` : '保存時の自動開始をオフにしました');
+});
+
+function fmtRestSec(s) { return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+renderRestControls();
 
 // ============================================================
 // 削除の取り消し（tombstone を戻すだけなので安全に実装できる）

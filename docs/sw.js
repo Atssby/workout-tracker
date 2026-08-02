@@ -1,4 +1,4 @@
-const CACHE_NAME = 'workout-tracker-v30';
+const CACHE_NAME = 'workout-tracker-v31';
 
 // オフラインで動くために必要なものを全部入れる。
 // 以前は外部CDN（Tailwind / Firebase SDK）に依存していたが、クロスオリジンの
