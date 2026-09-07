@@ -146,6 +146,7 @@ const MUSCLE_COLORS = {
   '肩':  { activeBg: '#ca8a04', border: '#ca8a04', sel: '#9d6b03', onDark: '#ca8a04', onLight: '#8a5e03', tagBg: 'rgba(202,138,4,0.18)',  tagBorder: '#ca8a04', tagText: '#fde68a', tagTextLight: '#78350f' },
   '腕':  { activeBg: '#9333ea', border: '#9333ea', sel: '#9333ea', onDark: '#a556ee', onLight: '#8921e8', tagBg: 'rgba(147,51,234,0.18)', tagBorder: '#9333ea', tagText: '#d8b4fe', tagTextLight: '#581c87' },
   '腹':  { activeBg: '#0d9488', border: '#0d9488', sel: '#0c8479', onDark: '#0d9488', onLight: '#0a7269', tagBg: 'rgba(13,148,136,0.18)', tagBorder: '#0d9488', tagText: '#5eead4', tagTextLight: '#134e4a' },
+  '尻':  { activeBg: '#db2777', border: '#db2777', sel: '#db2777', onDark: '#f0559b', onLight: '#b81f63', tagBg: 'rgba(219,39,119,0.18)', tagBorder: '#db2777', tagText: '#f9a8d4', tagTextLight: '#831843' },
 };
 
 // 明るいテーマかどうか（テーマ依存の色を選ぶときに使う）
@@ -1125,7 +1126,7 @@ function renderHistoryFilters() {
   // --- 部位ピル ---
   const pillContainer = document.getElementById('history-muscle-pills');
   pillContainer.innerHTML = '';
-  const muscles = ['', '胸', '背中', '脚', '肩', '腕', '腹'];
+  const muscles = ['', '胸', '背中', '脚', '尻', '肩', '腕', '腹'];
   muscles.forEach(m => {
     const btn = document.createElement('button');
     btn.className = 'flex-shrink-0 px-5 py-2.5 rounded-full text-base font-semibold border transition-colors';
@@ -1520,7 +1521,7 @@ function updateMuscleCountBtns() {
 function renderGraphMusclePills() {
   const pillContainer = document.getElementById('graph-muscle-pills');
   pillContainer.innerHTML = '';
-  const muscles = ['', '胸', '背中', '脚', '肩', '腕', '腹'];
+  const muscles = ['', '胸', '背中', '脚', '尻', '肩', '腕', '腹'];
   muscles.forEach(m => {
     const btn = document.createElement('button');
     btn.className = 'flex-shrink-0 px-5 py-2.5 rounded-full text-base font-semibold border transition-colors';
@@ -1811,16 +1812,17 @@ document.getElementById('graph-volume-btn').addEventListener('click', () => {
 // ただし 0.5 という重みは著者自身が heuristic と明言しているので、
 // 「主働のみ」に切り替えられるようにし、UIにも注記を出している。
 
-const MUSCLES = ['胸', '背中', '脚', '肩', '腕', '腹'];
+const MUSCLES = ['胸', '背中', '脚', '尻', '肩', '腕', '腹'];
 
 // 種目名から主働筋・協働筋を推定するテーブル（前方一致でなく部分一致）。
 // exercise.muscleGroups / exercise.secondaryMuscles が設定されていればそちらを優先する。
 const EXERCISE_MUSCLE_HINTS = [
   { re: /(ベンチプレス|チェストプレス|ダンベルプレス|プッシュアップ|腕立て|ディップ)/, primary: '胸',  secondary: ['腕', '肩'] },
   { re: /(フライ|ペックデック|ペックフライ)/,                                        primary: '胸',  secondary: [] },
-  { re: /(デッドリフト)/,                                                            primary: '背中', secondary: ['脚', '腕'] },
+  { re: /(デッドリフト)/,                                                            primary: '背中', secondary: ['脚', '尻', '腕'] },
   { re: /(ラットプル|懸垂|チンニング|プルアップ|ロウ|ローイング|プルオーバー|シュラッグ)/, primary: '背中', secondary: ['腕'] },
-  { re: /(スクワット|レッグプレス|ランジ|ヒップスラスト|ブルガリアン)/,                 primary: '脚',  secondary: ['腹'] },
+  { re: /(ヒップスラスト|ヒップリフト|ヒップエクステンション|ヒップアブダクション|グルート|バックキック)/, primary: '尻',  secondary: ['脚'] },
+  { re: /(スクワット|レッグプレス|ランジ|ブルガリアン)/,                                primary: '脚',  secondary: ['尻', '腹'] },
   { re: /(レッグエクステンション|レッグカール|カーフ|アダクション|アブダクション)/,      primary: '脚',  secondary: [] },
   { re: /(ショルダープレス|オーバーヘッドプレス|アップライトロウ)/,                     primary: '肩',  secondary: ['腕'] },
   { re: /(サイドレイズ|フロントレイズ|リアレイズ|リアデルト)/,                          primary: '肩',  secondary: [] },
